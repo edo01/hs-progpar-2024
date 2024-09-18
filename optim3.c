@@ -3,17 +3,17 @@
 
 #include <omp.h>
 
-// we removed n 
+// we removed n, the image blur algorithm uses a 3x3 neighborhood template. 
+//If it is obtained by using the variable n, each addition operation will increase the overhead.
 /**
  * Optimization O0
  * DENVER 2)  default_nb time: 8826.458 ms VS optim1 time:  5180.396 ms 
  * CORTEX-A57)  default_nb time: 8826.458 (CHANGEME) ms VS optim1 time: 20361.103  ms 
- * since we eliminated another loop, the code run faster than optim1. It is evident
- * that the arch benifts from the elimination of the branch from the assembly.
- We are accessing column major. Due to cache miss cross-row accesses 
- * in the vertical direction, we can observe that is slower than the optim1 [TO CHECK]
-
  * In this version we can observe better performances thanks to the inlining.
+ * Explication:
+ * Each time a function is called, the program needs to save the context, jump to the function, etc.,
+ * which will bring a certain amount of time overhead. 
+ * Inline functions insert function code directly at the call point.
  * 
 */
 
