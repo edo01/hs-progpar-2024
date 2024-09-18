@@ -8,6 +8,8 @@
  * Optimization O0
  * DENVER 2)  default_nb time: 8826.458(CHANGEME) ms VS optim1 time:  5180.396(CHANGEME) ms 
  * CORTEX-A57)  default_nb time: 8826.458 (CHANGEME) ms VS optim1 time: 20361.103(CHANGEME)  ms 
+ * For pixels at the edge of the image, we use the logic of blur_do_tile_default. For non-border pixels, 
+ we keep the optimization method of optim4 and use variable rotation technology to reduce redundant calculations.
  * Explication:
  * 
  * 
