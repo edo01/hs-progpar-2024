@@ -26,7 +26,7 @@ int blur_do_tile_optim4(int x, int y, int width, int height)
 {
   for (int i = y+1; i < y + height-1; i++) {
 
-    // Precompute for the first column
+    // compute for the first column
     unsigned r0 = 0, g0 = 0, b0 = 0, a0 = 0;
     unsigned r1 = 0, g1 = 0, b1 = 0, a1 = 0;
     unsigned r2 = 0, g2 = 0, b2 = 0, a2 = 0;
@@ -60,7 +60,7 @@ int blur_do_tile_optim4(int x, int y, int width, int height)
     r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
 
     for (int j = x + 1; j < x + width - 1; j++) {
-      // Compute the average for the current pixel
+      // Compute the average 
       unsigned r = (r0 + r1 + r2) / 9;
       unsigned g = (g0 + g1 + g2) / 9;
       unsigned b = (b0 + b1 + b2) / 9;
@@ -71,7 +71,7 @@ int blur_do_tile_optim4(int x, int y, int width, int height)
       // Shift the columns to the left 
       r0 = r1; g0 = g1; b0 = b1; a0 = a1;
       r1 = r2; g1 = g2; b1 = b2; a1 = a2;
-      // Compute values for the next column (right)
+      // Compute values for the next column 
       c = cur_img(i - 1, j + 2);
       r2 = (c >> 24) & 0xff; g2 = (c >> 16) & 0xff; b2 = (c >> 8) & 0xff; a2 = c & 0xff;
 
