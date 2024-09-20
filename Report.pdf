@@ -1,0 +1,58 @@
+Report: MU5IN160 – Parallel Programming  
+Hands-on Session 1 – Single-core CPU Optimizations
+
+This report outlines the process of optimizing the image blur algorithm through multiple versions. Each optimization targets specific computational redundancy, improving algorithm performance by reducing computation and memory access. Below is a brief explanation of each version and its analysis.
+
+2.1 Blur Kernel WITHOUT Border (default_nb)
+In the image boundaries, it’s impossible to compute an average of 9 pixels as some pixels are missing. We start from x+1 to y+width-1, first calculating the middle section, then handling the borders.  
+Analysis:  
+Compared to the default version, `default_nb` performs faster because simplifying the border handling reduces extra boundary checks and calculations, only copying neighboring pixel values. This boosts performance by avoiding special cases for boundary pixels.
+
+
+2.2 Loop Unrolling on X-axis (optim1)
+In `optim1`, the loop along the X-axis was manually unrolled, reducing control overhead (such as condition checks and jumps).  
+Analysis:
+Surprisingly, `optim1` takes longer than `default_nb`. While loop unrolling reduces control overhead, it increases the code size. The performance depends on processor architecture and cache behavior, and in this case, unrolling didn’t offer significant benefits.
+
+
+2.3 Loop Unrolling on Y-axis (optim2)
+Building on `optim1`, the next step is manually unrolling the loop along the Y-axis to further reduce control overhead. By directly writing out the operations for `i-1, i, i+1`, we avoid condition checks and jumps during each iteration.  
+
+Comparison between 2.2 and 2.3:
+- X-axis unrolling: Fits better with the memory access pattern.  
+- Y-axis unrolling: Can lead to cache misses due to vertical cross-row accesses, making performance improvements less significant compared to X-axis unrolling.
+
+2.4 Inline Function Calls (optim3)
+Each time a function is called, it incurs overhead such as saving the current state and jumping to the function.  
+Analysis:  
+By inlining functions in `optim3`, the performance improves as function calls are eliminated, and the function code is directly inserted at the call point.
+
+
+2.5 Variables Rotation (optim4)
+When processing pixels column by column, many parts of the 3x3 matrix overlap. For example, adjacent pixels share the middle and right columns.  
+Steps in the code:
+  1. Precompute the first column values:
+     For the first pixel in each row, compute the 3x3 neighborhood and store the values in `r0`, `r1`, `r2`, representing the left, middle, and right columns.
+  2. Variable rotation:
+     As we move along the X-axis, the middle column values are shifted to the left column, and the right column values shift to the middle.
+  3. Column rotation process:
+     For each new pixel, the previous column data is passed to the current column, and only the right column is recomputed.
+Analysis:
+`optim4` reduces redundant memory accesses and calculations, particularly in the column-by-column processing. By avoiding repeated computation for adjacent columns, `optim4` is expected to improve performance compared to `optim3`.
+
+
+2.6 Manage Borders (optim5)
+In this version, we restored the more complex border handling logic to ensure that the blur effect at the image edges is accurate. While non-border regions continue to use the optimizations from `optim4`, border pixels are handled with the logic from `blur_do_tile_default`.  
+Analysis:
+Restoring the border handling ensures correct processing of edge pixels. Though it adds some computational overhead, the overall performance did not degrade significantly. This version strikes a balance between visual quality and performance.
+
+
+2.7 [Bonus] Reduction (optim6)
+This version applies column reduction to reduce the number of computations, further optimizing the kernel. Column reduction reuses computations from adjacent columns to minimize redundant calculations.  
+Analysis:
+
+2.8 [Bonus] Compare with Different Levels of Compiler Optimization
+This task involves testing the different optimized versions at varying levels of compiler optimization (`-O1`, `-O2`, `-O3`). Performance comparisons help understand how different compiler optimizations affect the various code versions.
+
+
+Conclusion
