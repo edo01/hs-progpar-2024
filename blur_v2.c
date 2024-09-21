@@ -475,18 +475,23 @@ int blur_v2_do_tile_optim4(int x, int y, int width, int height)
 }
 
 
+// optim5 - VARIABLES ROTATION with border management
 /**
- * Optimization O0
- * DENVER 2)  default_nb time: 8826.458(CHANGEME) ms VS optim5 time: 5802.546(CHANGEME) ms 
- * CORTEX-A57)  default_nb time: 8826.458 (CHANGEME) ms VS optim5 time: 21753.905(CHANGEME)  ms 
- * For pixels at the edge of the image, we use the logic of blur_do_tile_default. For non-border pixels, 
- we keep the optimization method of optim4 and use variable rotation technology to reduce redundant calculations.
- * Explication:
+ * In this version we restore the border management in the loop
+ * in order to have a complete version of the code.
  * 
- * 
- * 
-
- * 
+ * #############  O0  ###############
+ * D2: 2827.242  ms
+ * CA52: 8629.458  ms
+ * #############  O1  ###############
+ * D2: 786.404  ms
+ * CA52: 1299.351  ms
+ * #############  O2  ###############
+ * D2: 745.673  ms
+ * CA52: 1124.730  ms
+ * #############  O3  ###############
+ * D2: 753.616  ms
+ * CA52: 1128.852  ms
  * 
 */
 int blur_v2_do_tile_optim5(int x, int y, int width, int height)
@@ -495,35 +500,71 @@ int blur_v2_do_tile_optim5(int x, int y, int width, int height)
   unsigned r1 = 0, g1 = 0, b1 = 0, a1 = 0;
   unsigned r2 = 0, g2 = 0, b2 = 0, a2 = 0;
   unsigned r, g, b, a;
+  int j_d, j_f, n;
 
   unsigned c;
-
-      int i_d = (i > 0) ? i - 1 : i;
-      int i_f = (i < DIM - 1) ? i + 1 : i;
-      int j_d = (j > 0) ? j - 1 : j;
-      int j_f = (j < DIM - 1) ? j + 1 : j;
-
-  // coalesced access
+  
+  // manage the first and last row
   for(int j = x; j < x + width; j++){	
+      r = 0, g = 0, b = 0, a = 0;
+      n = 0;
+      j_d = (j > 0) ? j - 1 : j;
+      j_f = (j < DIM - 1) ? j + 1 : j;
+
       next_img(y, j) = cur_img(y, j);	
       next_img(DIM-1,j) = cur_img(DIM-1,j);	
+
+      // first row
+      for (int yloc = j_d; yloc <= j_f; yloc++){
+        for (int xloc = 0; xloc <= 1; xloc++) {
+          c = cur_img (xloc, yloc);
+          r += ezv_c2r (c); g += ezv_c2g (c); b += ezv_c2b (c); a += ezv_c2a (c);
+          n++;
+        }
+      }
+      // we must use n because the number of neighbors is variable
+      r /= n; g /= n; b /= n; a /= n; 
+      next_img (y, j) = ezv_rgba (r, g, b, a);
+
+      r = 0, g = 0, b = 0, a = 0;
+      n = 0;
+      // last row
+      for (int yloc = j_d; yloc <= j_f; yloc++){
+        for (int xloc = DIM-2; xloc <= DIM-1; xloc++) {
+          c = cur_img (xloc, yloc);
+          r += ezv_c2r (c); g += ezv_c2g (c); b += ezv_c2b (c); a += ezv_c2a (c);
+          n++;
+        }
+      }
+      r /= n; g /= n; b /= n; a /= n;
+      next_img (DIM-1, j) = ezv_rgba (r, g, b, a);
   } 
 
   for (int i = y+1; i < y + height-1; i++){
-    next_img(i, x) = cur_img(i, x);	// first column
-    
-    r0 = 0, g0 = 0, b0 = 0, a0 = 0;
-    r1 = 0, g1 = 0, b1 = 0, a1 = 0;
-    r2 = 0, g2 = 0, b2 = 0, a2 = 0;
 
+    r = 0, g = 0, b = 0, a = 0;
+    //every time we start computing a new row, we calculate the first pixel
+    for (int yloc = 0; yloc <= 1; yloc++){
+      for (int xloc = i-1; xloc <= i+1; xloc++) {
+        c = cur_img (xloc, yloc);
+        r += ezv_c2r (c);
+        g += ezv_c2g (c);
+        b += ezv_c2b (c);
+        a += ezv_c2a (c);
+      }
+    }
+    r /= 6; g /= 6; b /= 6; a /= 6;
+    // set the first pixel of the row
+    next_img (i, x) = ezv_rgba (r, g, b, a);
+  
     c = cur_img(i-1, y);
-    r0 += (uint8_t)c; g0 += (uint8_t)(c >> 8); b0 += (uint8_t)(c >> 16); a0 += (uint8_t)(c >> 24); 
+    r0 = (uint8_t)c; g0 = (uint8_t)(c >> 8); b0 = (uint8_t)(c >> 16); a0 = (uint8_t)(c >> 24); 
 
     c = cur_img(i-1, y+1);
-    r1 += (uint8_t)c; g1 += (uint8_t)(c >> 8); b1 += (uint8_t)(c >> 16); a1 += (uint8_t)(c >> 24);
+    r1 = (uint8_t)c; g1 = (uint8_t)(c >> 8); b1 = (uint8_t)(c >> 16); a1 = (uint8_t)(c >> 24);
 
     c = cur_img(i-1, y+2);
-    r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
+    r2 = (uint8_t)c; g2 = (uint8_t)(c >> 8); b2 = (uint8_t)(c >> 16); a2 = (uint8_t)(c >> 24);
 
     c = cur_img(i, y);
     r0 += (uint8_t)c; g0 += (uint8_t)(c >> 8); b0 += (uint8_t)(c >> 16); a0 += (uint8_t)(c >> 24);
@@ -543,7 +584,7 @@ int blur_v2_do_tile_optim5(int x, int y, int width, int height)
     c = cur_img(i+1, x+2);
     r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
 
-    for (int j = x + 1; j < x + width - 1; j++) {
+    for (int j = x+1; j < x + width-1; j++) {
       // Compute the average 
       r = (r0 + r1 + r2) / 9;
       g = (g0 + g1 + g2) / 9;
@@ -565,7 +606,22 @@ int blur_v2_do_tile_optim5(int x, int y, int width, int height)
       c = cur_img(i + 1, j + 2);
       r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
     }
-    next_img(i, DIM-1) = cur_img(i, DIM-1);	// last column
+
+    r = 0, g = 0, b = 0, a = 0;
+    // Finally we compute the last pixel of the row
+    for (int yloc = DIM-2; yloc <= DIM-1; yloc++){
+      for (int xloc = i-1; xloc <= i+1; xloc++) {
+        c = cur_img (xloc, yloc);
+        r += ezv_c2r (c);
+        g += ezv_c2g (c);
+        b += ezv_c2b (c);
+        a += ezv_c2a (c);
+      }
+    }
+    r /= 6; g /= 6; b /= 6; a /= 6;
+    // set the last pixel of the row
+    next_img (i, DIM-1) = ezv_rgba (r, g, b, a);
+
   }
   return 0;
 }
