@@ -200,8 +200,8 @@ int blur_v2_do_tile_optim1 (int x, int y, int width, int height)
  * removed completely the branches inside the loop, leaving only two
  * loops in the code. Theoretically, when running the code on the Cortex-A57 
  * it should perform better since the branch prediction is only two levels deep. 
- * This doesn't happen, and it is due to the presence of function calls inside the loop.
- * 
+ * This doesn't happen, and it is due to the presence of function calls inside the loop that
+ * still limit the performance of the code.
  *
  * #############  O0  ###############
  * D2: 12525.265  ms
@@ -380,7 +380,7 @@ int blur_v2_do_tile_optim3 (int x, int y, int width, int height)
  * In our case, when the kernel slides to the right, the first and the seocond column of the 3x3 neighborhood
  * overlap with the second and the third column of the previous 3x3 neighborhood.
  * 
- * Please note that the memory access is not coalesced when considering the same iteration of the loop in the
+ * Please note that the memory accesses are non-coalesced when considering the same iteration of the loop in the
  * y direction. But, when the kernel slides to the right, data are likely to be in the cache due to the 
  * previous access on the same row. 
  * 

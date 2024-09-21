@@ -201,7 +201,8 @@ int blur_do_tile_optim1 (int x, int y, int width, int height)
  * removed completely the branches inside the loop, leaving only two
  * loops in the code. Theoretically, when running the code on the Cortex-A57 
  * it should perform better since the branch prediction is only two levels deep. 
- * This doesn't happen, and it is due to the presence of function calls inside the loop.
+ * This doesn't happen, and it is due to the presence of function calls inside the loop that
+ * still limit the performance of the code.
  * 
  * #############  O0  ###############
  * D2: 12694.874  ms
@@ -292,6 +293,9 @@ int blur_do_tile_optim2 (int x, int y, int width, int height)
  * Each time a function is called, the program needs to save the context, jump and return from the function, etc.,
  * This will bring a certain amount of time overhead, that can be avoided by inlining the function calls.
  * 
+ * Here we can see a significant performance when running the code on the Cortex-A57. Removing the function calls
+ * in
+ *
  * #############  O0  ###############
  * D2: 11670.198  ms
  * CA57: 20069.54 ms
@@ -388,7 +392,7 @@ int blur_do_tile_optim3 (int x, int y, int width, int height)
  * In our case, when the kernel slides to the right, the first and the seocond column of the 3x3 neighborhood
  * overlap with the second and the third column of the previous 3x3 neighborhood.
  * 
- * Please note that the memory access is not coalesced when considering the same iteration of the loop in the
+ * Please note that the memory accesses are non-coalesced when considering the same iteration of the loop in the
  * y direction. But, when the kernel slides to the right, data are likely to be in the cache due to the 
  * previous access on the same row. 
  */
@@ -644,6 +648,22 @@ int blur_do_tile_optim5(int x, int y, int width, int height)
     r /= n; g /= n; b /= n; a /= n;
     next_img (DIM-1, j) = ezv_rgba (r, g, b, a);
   } 
+
+  return 0;
+}
+
+///////////////////////////// Sequential version (tiled)
+// Suggested cmdline(s):
+// ./run -l data/img/1024.png -k blur -v seq
+//
+unsigned blur_compute_seq (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+
+    do_tile (0, 0, DIM, DIM);
+
+    swap_images ();
+  }
 
   return 0;
 }
