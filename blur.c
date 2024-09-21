@@ -574,9 +574,10 @@ int blur_do_tile_optim5(int x, int y, int width, int height)
     }
   }
 
-  r = 0, g = 0, b = 0, a = 0;
+  
   // Manage the borders
   for(int i = y+1; i < y + height-1; i++){	
+    r = 0, g = 0, b = 0, a = 0;
     // first pixel of the row
     for (int yloc = 0; yloc <= 1; yloc++){
       for (int xloc = i-1; xloc <= i+1; xloc++) {
@@ -643,22 +644,6 @@ int blur_do_tile_optim5(int x, int y, int width, int height)
     r /= n; g /= n; b /= n; a /= n;
     next_img (DIM-1, j) = ezv_rgba (r, g, b, a);
   } 
-
-  return 0;
-}
-
-///////////////////////////// Sequential version (tiled)
-// Suggested cmdline(s):
-// ./run -l data/img/1024.png -k blur -v seq
-//
-unsigned blur_compute_seq (unsigned nb_iter)
-{
-  for (unsigned it = 1; it <= nb_iter; it++) {
-
-    do_tile (0, 0, DIM, DIM);
-
-    swap_images ();
-  }
 
   return 0;
 }
