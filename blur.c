@@ -464,13 +464,13 @@ int blur_do_tile_optim4(int x, int y, int width, int height)
       r1 = r2; g1 = g2; b1 = b2; a1 = a2;
       // Compute values for the next column 
       c = cur_img(i - 1, j + 2);
-      r2 = (uint8_t)c; g2 = (uint8_t)(c >> 8); b2 = (uint8_t)(c >> 16) & 0xff; a2 = (uint8_t)(c >> 24);
+      r2 = (uint8_t)c; g2 = (uint8_t)(c >> 8); b2 = (uint8_t)(c >> 16); a2 = (uint8_t)(c >> 24);
 
       c = cur_img(i, j + 2);
-      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16) & 0xff; a2 += (uint8_t)(c >> 24);
+      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
 
       c = cur_img(i + 1, j + 2);
-      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16) & 0xff; a2 += (uint8_t)(c >> 24);
+      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
     }
   }
 

@@ -498,6 +498,11 @@ int blur_v2_do_tile_optim5(int x, int y, int width, int height)
 
   unsigned c;
 
+      int i_d = (i > 0) ? i - 1 : i;
+      int i_f = (i < DIM - 1) ? i + 1 : i;
+      int j_d = (j > 0) ? j - 1 : j;
+      int j_f = (j < DIM - 1) ? j + 1 : j;
+
   // coalesced access
   for(int j = x; j < x + width; j++){	
       next_img(y, j) = cur_img(y, j);	
@@ -552,13 +557,13 @@ int blur_v2_do_tile_optim5(int x, int y, int width, int height)
       r1 = r2; g1 = g2; b1 = b2; a1 = a2;
       // Compute values for the next column 
       c = cur_img(i - 1, j + 2);
-      r2 = (uint8_t)c; g2 = (uint8_t)(c >> 8); b2 = (uint8_t)(c >> 16) & 0xff; a2 = (uint8_t)(c >> 24);
+      r2 = (uint8_t)c; g2 = (uint8_t)(c >> 8); b2 = (uint8_t)(c >> 16); a2 = (uint8_t)(c >> 24);
 
       c = cur_img(i, j + 2);
-      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16) & 0xff; a2 += (uint8_t)(c >> 24);
+      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
 
       c = cur_img(i + 1, j + 2);
-      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16) & 0xff; a2 += (uint8_t)(c >> 24);
+      r2 += (uint8_t)c; g2 += (uint8_t)(c >> 8); b2 += (uint8_t)(c >> 16); a2 += (uint8_t)(c >> 24);
     }
     next_img(i, DIM-1) = cur_img(i, DIM-1);	// last column
   }
