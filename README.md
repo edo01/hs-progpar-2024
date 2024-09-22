@@ -5,7 +5,7 @@ Hands-on session from the course "Programmation parallèle pour systèmes embarq
 
 ## Summary
 
-This repository contains a series of optimizations for a blur kernel applied to images. The primary goal of this project is to improve the performance of the blur operation by progressively optimizing the original implementation. The optimizations include techniques such as loop unrolling, variable rotation, function inlining, and optimized handling of image boundaries. Each optimization is tested with different compiler optimization levels to measure its effect on execution time. The key files in this project are the report detailing the optimizations, the `blur.c` and `blur_v2.c` source files, and a script (`run.sh`) to automate performance testing.
+This repository contains a series of optimizations for a blur kernel applied to images. The primary goal of this project is to improve the performance of the blur operation by progressively optimizing the original implementation. The optimizations include techniques such as loop unrolling, variable rotation, function inlining, and optimized handling of image boundaries. Each optimization is tested with different compiler optimization levels to measure its effect on execution time. The key files in this project are the report detailing the optimizations, the `blur.c` and `blur_v2.c` source files, and two script (`run.sh` and `test.sh`) to automate performance testing.
 
 ---
 
