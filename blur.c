@@ -9,7 +9,8 @@ OF ALL THE KERNELS, A README.MD AND FINALLY A LATEX REPORT
 WE UPLOADED EVERYTHING IN A PUBLIC REPOSITORY
 https://github.com/edo01/hs-progpar-2024
 
-
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
 ##############################################################
 ##############################################################
 ##############################################################
