@@ -1,4 +1,19 @@
+/**
+##############################################################
+##############################################################
+##############################################################
+WE ALSO DID A COALESCED VERSION OF THESE KERNELS, A SCRIPT 
+FOR RUNNING THE BENCHMARKS, ASCRIPT TO TEST THE CORRECTNESS 
+OF ALL THE KERNELS, A README.MD AND FINALLY A LATEX REPORT
 
+WE UPLOADED EVERYTHING IN A PUBLIC REPOSITORY
+https://github.com/edo01/hs-progpar-2024
+
+
+##############################################################
+##############################################################
+##############################################################
+*/
 #include "easypap.h"
 
 #include <omp.h>
@@ -382,10 +397,11 @@ int blur_do_tile_optim3 (int x, int y, int width, int height)
   return 0;
 }
 
-// optim4 - VARIABLES ROTATION
+// optim4 - VARIABLES ROTATION (and we think also column reduction)
 /**
  * Optimization carried out:
  * - Variables rotation
+ * - Column reduction (maybe)
  * 
  * In this version, we rotate the variables in the x direction.
  * Rotating the variables allows us to reduce the number of redundant calculations and memory accesses.
