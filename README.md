@@ -35,16 +35,19 @@ To compile and run the program with different optimization levels:
    ```bash
    chmod +x run.sh
    ```
-2. Run the script:
+2. Run the performance tests using:
    ```bash
    ./run.sh
    ```
-or 
+3. Compile the program with different optimization flags using:
    ```bash
    ./run.sh -c
    ```
-
-This will execute each version of the kernel and generate performance data for analysis. The script is configured to run each kernel multiple times to ensure the accuracy of the timing results.
+4. Run the correctness tests using:
+   ```bash
+   ./test.sh
+   ```
+Both scripts will provide detailed output on execution times and correctness, allowing for easy comparison and validation of the optimized kernel implementations.
 
 
 
