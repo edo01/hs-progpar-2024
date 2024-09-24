@@ -283,6 +283,10 @@ static inline mipp::Reg<int> compute_color_simd_v2(mipp::Reg<int> r_i,
   
   int result[mipp::N<int>()];
   //mipp::Reg<int> r = mipp::cvt<float, int>(mipp::Reg<float>(color_a_r) * ratio + mipp::Reg<float>(color_b_r) * (mipp::Reg<float>(1.f) - ratio));
+  //mipp::Reg<int> g = mipp::cvt<float, int>(mipp::Reg<float>(color_a_g) * ratio + mipp::Reg<float>(color_b_g) * (mipp::Reg<float>(1.f) - ratio));
+  //mipp::Reg<int> b = mipp::cvt<float, int>(mipp::Reg<float>(color_a_b) * ratio + mipp::Reg<float>(color_b_b) * (mipp::Reg<float>(1.f) - ratio));
+  //mipp::Reg<int> a = mipp::cvt<float, int>(mipp::Reg<float>(color_a_a) * ratio + mipp::Reg<float>(color_b_a) * (mipp::Reg<float>(1.f) - ratio));
+
   //int r = color_a_r * ratio[index] + color_b_r * (1.f - ratio[index]);
   //int g = color_a_g * ratio[index] + color_b_g * (1.f - ratio[index]);
   //int b = color_a_b * ratio[index] + color_b_b * (1.f - ratio[index]);
