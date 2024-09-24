@@ -201,6 +201,7 @@ EXTERN unsigned spin_compute_simd_v0(unsigned nb_iter) {
 
 static inline mipp::Reg<float> fmodf_approx_simd(mipp::Reg<float> r_x,
                                                  mipp::Reg<float> r_y) {
+  // Use trunc to get the integer part of x/y
   return r_x - mipp::trunc(r_x / r_y) * r_y;
 }
 
