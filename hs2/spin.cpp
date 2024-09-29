@@ -773,7 +773,6 @@ EXTERN unsigned spin_compute_simd_v6u4(unsigned nb_iter) {
       mipp::Reg<float> r_atan2f_in1 = r_dim - mipp::cvt<int, float>(mipp::Reg<int>(i)); 
 
       for (unsigned j = 0; j < DIM; j += 4 * mipp::N<float>()) {
-        // 为四个 j 组初始化寄存器
         int tab_j0[mipp::N<int>()], tab_j1[mipp::N<int>()], tab_j2[mipp::N<int>()], tab_j3[mipp::N<int>()];
         for (unsigned jj = 0; jj < mipp::N<float>(); jj++) {
           tab_j0[jj] = j + jj;
