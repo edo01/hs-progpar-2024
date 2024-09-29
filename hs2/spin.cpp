@@ -679,8 +679,82 @@ EXTERN unsigned spin_compute_simd_v5(unsigned nb_iter) {
 // ------------------------------------------------------------- SIMD VERSION 6
 // ----------------------------------------------------------------------------
 
-EXTERN unsigned spin_compute_simd_v6(unsigned nb_iter) {
+EXTERN unsigned spin_compute_simd_v6u2(unsigned nb_iter) {
+  mipp::Reg<float> r_dim = DIM / 2.f;
+  mipp::Reg<float> r_pi_div_4 = M_PI / 4.f;
+  mipp::Reg<float> r_pi_div_8 = M_PI / 8.f;
+  mipp::Reg<float> r_pi = M_PI;
+  mipp::Reg<float> r_1 = 1.f;
+
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    for (unsigned i = 0; i < DIM; i++) {
+      mipp::Reg<float> r_atan2f_in1 = r_dim - mipp::cvt<int, float>(mipp::Reg<int>(i)); 
+      for (unsigned j = 0; j < DIM; j += 2 * mipp::N<float>()) { // 2-order unrolling
+        int tab_j0[mipp::N<int>()], tab_j1[mipp::N<int>()];
+        for (unsigned jj = 0; jj < mipp::N<float>(); jj++) {
+          tab_j0[jj] = j + jj;
+          tab_j1[jj] = j + jj + mipp::N<float>();
+        }
+
+        //j0
+        mipp::Reg<float> r_atan2f_in2_j0 = mipp::cvt<int, float>(mipp::Reg<int>(tab_j0)) - r_dim;
+        mipp::Reg<float> r_abs_y_j0 = mipp::abs(r_atan2f_in1);
+        mipp::Reg<float> r_abs_x_j0 = mipp::abs(r_atan2f_in2_j0);
+        mipp::Msk<mipp::N<float>()> invert_mask_j0 = r_abs_y_j0 > r_abs_x_j0;
+        mipp::Reg<float> r_z_j0 = mipp::blend(r_abs_x_j0 / r_abs_y_j0, r_abs_y_j0 / r_abs_x_j0, invert_mask_j0);
+        
+        mipp::Reg<float> r_atan_approx_j0 = mipp::fmadd(r_z_j0, r_pi_div_4, mipp::Reg<float>(0.273f) * r_z_j0 * (r_1 - mipp::abs(r_z_j0)));
+        r_atan_approx_j0 = mipp::blend(mipp::Reg<float>(M_PI_2) - r_atan_approx_j0, r_atan_approx_j0, invert_mask_j0);
+        mipp::Msk<mipp::N<float>()> x_negative_mask_j0 = r_atan2f_in2_j0 < mipp::Reg<float>(0.f);
+        r_atan_approx_j0 = mipp::blend(r_pi - r_atan_approx_j0, r_atan_approx_j0, x_negative_mask_j0);
+        mipp::Msk<mipp::N<float>()> y_negative_mask_j0 = r_atan2f_in1 < mipp::Reg<float>(0.f);
+        r_atan_approx_j0 = mipp::blend(-r_atan_approx_j0, r_atan_approx_j0, y_negative_mask_j0);
+
+       
+        mipp::Reg<float> r_angle_j0 = r_atan_approx_j0 + mipp::Reg<float>(M_PI + base_angle);
+        mipp::Reg<float> r_mod_reg_j0 = fmodf_approx_simd(r_angle_j0, r_pi_div_4);
+        mipp::Reg<float> r_ratio_j0 = mipp::abs((r_mod_reg_j0 - r_pi_div_8) / r_pi_div_8);
+
+        mipp::Reg<int> r_r_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_r + (r_1 - r_ratio_j0) * color_b_r);
+        mipp::Reg<int> r_g_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_g + (r_1 - r_ratio_j0) * color_b_g);
+        mipp::Reg<int> r_b_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_b + (r_1 - r_ratio_j0) * color_b_b);
+        mipp::Reg<int> r_a_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_a + (r_1 - r_ratio_j0) * color_b_a);
+        mipp::Reg<int> r_result_j0 = rgba_simd(r_r_j0, r_g_j0, r_b_j0, r_a_j0);
+
+        //j1
+        mipp::Reg<float> r_atan2f_in2_j1 = mipp::cvt<int, float>(mipp::Reg<int>(tab_j1)) - r_dim;
+        mipp::Reg<float> r_abs_y_j1 = mipp::abs(r_atan2f_in1);
+        mipp::Reg<float> r_abs_x_j1 = mipp::abs(r_atan2f_in2_j1);
+        mipp::Msk<mipp::N<float>()> invert_mask_j1 = r_abs_y_j1 > r_abs_x_j1;
+        mipp::Reg<float> r_z_j1 = mipp::blend(r_abs_x_j1 / r_abs_y_j1, r_abs_y_j1 / r_abs_x_j1, invert_mask_j1);
+        mipp::Reg<float> r_atan_approx_j1 = mipp::fmadd(r_z_j1, r_pi_div_4, mipp::Reg<float>(0.273f) * r_z_j1 * (r_1 - mipp::abs(r_z_j1)));
+        r_atan_approx_j1 = mipp::blend(mipp::Reg<float>(M_PI_2) - r_atan_approx_j1, r_atan_approx_j1, invert_mask_j1);
+        mipp::Msk<mipp::N<float>()> x_negative_mask_j1 = r_atan2f_in2_j1 < mipp::Reg<float>(0.f);
+        r_atan_approx_j1 = mipp::blend(r_pi - r_atan_approx_j1, r_atan_approx_j1, x_negative_mask_j1);
+        mipp::Msk<mipp::N<float>()> y_negative_mask_j1 = r_atan2f_in1 < mipp::Reg<float>(0.f);
+        r_atan_approx_j1 = mipp::blend(-r_atan_approx_j1, r_atan_approx_j1, y_negative_mask_j1);
+
+        mipp::Reg<float> r_angle_j1 = r_atan_approx_j1 + mipp::Reg<float>(M_PI + base_angle);
+        mipp::Reg<float> r_mod_reg_j1 = fmodf_approx_simd(r_angle_j1, r_pi_div_4);
+        mipp::Reg<float> r_ratio_j1 = mipp::abs((r_mod_reg_j1 - r_pi_div_8) / r_pi_div_8);
+
+        mipp::Reg<int> r_r_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_r + (r_1 - r_ratio_j1) * color_b_r);
+        mipp::Reg<int> r_g_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_g + (r_1 - r_ratio_j1) * color_b_g);
+        mipp::Reg<int> r_b_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_b + (r_1 - r_ratio_j1) * color_b_b);
+        mipp::Reg<int> r_a_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_a + (r_1 - r_ratio_j1) * color_b_a);
+        mipp::Reg<int> r_result_j1 = rgba_simd(r_r_j1, r_g_j1, r_b_j1, r_a_j1);
+
+        
+        int* img_out_ptr_j0 = (int*)&cur_img(i, j);
+        int* img_out_ptr_j1 = (int*)&cur_img(i, j + mipp::N<float>());
+        r_result_j0.store(img_out_ptr_j0);
+        r_result_j1.store(img_out_ptr_j1);
+      }
+    }
+    rotate();
+  }
   return 0;
 }
+
 
 #endif /* ENABLE_VECTO */
