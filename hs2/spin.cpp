@@ -746,10 +746,10 @@ EXTERN unsigned spin_compute_simd_v6u2(unsigned nb_iter) {
         r_mod_reg_j0 = fmodf_approx_simd(r_angle_j0, r_PI_DIV_4);
         r_ratio_j0 = mipp::abs((r_mod_reg_j0 - r_PI_DIV) / r_PI_DIV);
 
-        r_r_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_r + (r_1 - r_ratio_j0) * color_b_r);
-        r_g_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_g + (r_1 - r_ratio_j0) * color_b_g);
-        r_b_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_b + (r_1 - r_ratio_j0) * color_b_b);
-        r_a_j0 = mipp::cvt<float, int>(r_ratio_j0 * color_a_a + (r_1 - r_ratio_j0) * color_b_a);
+        r_r_j0 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j0, mipp::Reg<float>(color_a_r), (r_1 - r_ratio_j0) * color_b_r));
+        r_g_j0 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j0, mipp::Reg<float>(color_a_g), (r_1 - r_ratio_j0) * color_b_g));
+        r_b_j0 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j0, mipp::Reg<float>(color_a_b), (r_1 - r_ratio_j0) * color_b_b));
+        r_a_j0 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j0, mipp::Reg<float>(color_a_a), (r_1 - r_ratio_j0) * color_b_a));
         r_result_j0 = rgba_simd(r_r_j0, r_g_j0, r_b_j0, r_a_j0);
 
         //j1
@@ -772,10 +772,10 @@ EXTERN unsigned spin_compute_simd_v6u2(unsigned nb_iter) {
         r_mod_reg_j1 = fmodf_approx_simd(r_angle_j1, r_PI_DIV_4);
         r_ratio_j1 = mipp::abs((r_mod_reg_j1 - r_PI_DIV) / r_PI_DIV);
 
-        r_r_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_r + (r_1 - r_ratio_j1) * color_b_r);
-        r_g_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_g + (r_1 - r_ratio_j1) * color_b_g);
-        r_b_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_b + (r_1 - r_ratio_j1) * color_b_b);
-        r_a_j1 = mipp::cvt<float, int>(r_ratio_j1 * color_a_a + (r_1 - r_ratio_j1) * color_b_a);
+        r_r_j1 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j1, mipp::Reg<float>(color_a_r), (r_1 - r_ratio_j1) * color_b_r));
+        r_g_j1 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j1, mipp::Reg<float>(color_a_g), (r_1 - r_ratio_j1) * color_b_g));
+        r_b_j1 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j1, mipp::Reg<float>(color_a_b), (r_1 - r_ratio_j1) * color_b_b));
+        r_a_j1 = mipp::cvt<float,int>(mipp::fmadd(r_ratio_j1, mipp::Reg<float>(color_a_a), (r_1 - r_ratio_j1) * color_b_a));
         r_result_j1 = rgba_simd(r_r_j1, r_g_j1, r_b_j1, r_a_j1);
 
         
