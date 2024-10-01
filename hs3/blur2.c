@@ -1,4 +1,3 @@
-
 #include "easypap.h"
 
 #include <omp.h>
@@ -290,74 +289,6 @@ int blur2_do_tile_urrot2 (int x, int y, int width, int height)
   return 0;
 }
 
-int blur2_do_tile_urrot1 (int x, int y, int width, int height)
-{
-
-  // loop over y (start from +1, end at -1 => no border)
-  for (int i = y + 1; i < y + height - 1; i++) {
-    uint16_t c_0_r = 0, c_0_g = 0, c_0_b = 0, c_0_a = 0; // col 0 -> 4 color components {r,g,b,a}
-    uint16_t c_1_r = 0, c_1_g = 0, c_1_b = 0, c_1_a = 0; // col 1 -> 4 color components {r,g,b,a}
-
-    // read 3 pixels of column 0
-    unsigned c_0_0 = cur_img(i - 1, x + 0), c_1_0 = cur_img(i + 0, x + 0), c_2_0 = cur_img(i + 1, x + 0);
-    // read 3 pixels of column 1
-    unsigned c_0_1 = cur_img(i - 1, x + 1), c_1_1 = cur_img(i + 0, x + 1), c_2_1 = cur_img(i + 1, x + 1);
-
-    // reduction of the pixels of column 0 (per components {r,g,b,a})
-    c_0_r += ezv_c2r(c_0_0); c_0_g += ezv_c2g(c_0_0); c_0_b += ezv_c2b(c_0_0); c_0_a += ezv_c2a(c_0_0);
-    c_0_r += ezv_c2r(c_1_0); c_0_g += ezv_c2g(c_1_0); c_0_b += ezv_c2b(c_1_0); c_0_a += ezv_c2a(c_1_0);
-    c_0_r += ezv_c2r(c_2_0); c_0_g += ezv_c2g(c_2_0); c_0_b += ezv_c2b(c_2_0); c_0_a += ezv_c2a(c_2_0);
-
-    // reduction of the pixels of column 1 (per components {r,g,b,a})
-    c_1_r += ezv_c2r(c_0_1); c_1_g += ezv_c2g(c_0_1); c_1_b += ezv_c2b(c_0_1); c_1_a += ezv_c2a(c_0_1);
-    c_1_r += ezv_c2r(c_1_1); c_1_g += ezv_c2g(c_1_1); c_1_b += ezv_c2b(c_1_1); c_1_a += ezv_c2a(c_1_1);
-    c_1_r += ezv_c2r(c_2_1); c_1_g += ezv_c2g(c_2_1); c_1_b += ezv_c2b(c_2_1); c_1_a += ezv_c2a(c_2_1);
-
-    uint8x16_t r_c_0_l_0, r_c_0_l_1, r_c_0_l_2;
-    uint8x16_t r_c_1_l_0, r_c_1_l_1, r_c_1_l_2;
-
-    // loop over x (start from +1, end at -1 => no border)
-    for (int j = x + 1; j < x + width - 1; j++) {
-      uint16_t c_2_r = 0, c_2_g = 0, c_2_b = 0, c_2_a = 0; // col 2 -> 4 color components {r,g,b,a}
-
-      // read 3 pixels of column 2
-      unsigned c_0_2 = cur_img(i - 1, j + 1);
-      unsigned c_1_2 = cur_img(i + 0, j + 1);
-      unsigned c_2_2 = cur_img(i + 1, j + 1);
-
-      uint8x16_t r_c_2_l_0 = (uint8x16_t)vld1q_u8((uint8_t*)&c_0_2);
-      uint8x16_t r_c_2_l_1 = (uint8x16_t)vld1q_u8((uint8_t*)&c_1_2);
-      uint8x16_t r_c_2_l_2 = (uint8x16_t)vld1q_u8((uint8_t*)&c_2_2);
-
-
-      // reduction of the pixels of column 2 (per components {r,g,b,a})
-      c_2_r += ezv_c2r(c_0_2); c_2_g += ezv_c2g(c_0_2); c_2_b += ezv_c2b(c_0_2); c_2_a += ezv_c2a(c_0_2);
-      c_2_r += ezv_c2r(c_1_2); c_2_g += ezv_c2g(c_1_2); c_2_b += ezv_c2b(c_1_2); c_2_a += ezv_c2a(c_1_2);
-      c_2_r += ezv_c2r(c_2_2); c_2_g += ezv_c2g(c_2_2); c_2_b += ezv_c2b(c_2_2); c_2_a += ezv_c2a(c_2_2);
-
-      // compute the sum of all the columns 0,1,2 per components {r,g,b,a}
-      uint16_t r = 0, g = 0, b = 0, a = 0;
-      r = c_0_r+c_1_r+c_2_r; g = c_0_g+c_1_g+c_2_g; b = c_0_b+c_1_b+c_2_b; a = c_0_a+c_1_a+c_2_a;
-      // compute the average (sum = sum / 9)
-      r /= 9; g /= 9; b /= 9; a /= 9;
-
-      // variables rotations (col0 <- col1 and col1 <- col2)
-      c_0_r = c_1_r; c_0_g = c_1_g; c_0_b = c_1_b; c_0_a = c_1_a;
-      c_1_r = c_2_r; c_1_g = c_2_g; c_1_b = c_2_b; c_1_a = c_2_a;
-
-      // write the current pixel
-      next_img(i, j) = ezv_rgba (r, g, b, a);
-    }
-  }
-
-  // left-right borders size
-  uint32_t bsize = 1;
-  // compute the borders
-  compute_borders(x, y, width, height, bsize);
-
-  return 0;
-}
-
 #if defined(ENABLE_VECTO) && (defined(__ARM_NEON__) || defined(__ARM_NEON))
 #include <arm_neon.h>
 
@@ -414,7 +345,137 @@ void print_reg_f32(const float32x4_t r, const char* name) {
 }
 
 int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
-  // TODO
+  // loop over y (start from +1, end at -1 => no border)
+  for (int i = y + 1; i < y + height - 1; i++) {
+    uint16_t c_0_r = 0, c_0_g = 0, c_0_b = 0, c_0_a = 0; // col 0 -> 4 color components {r,g,b,a}
+    uint16_t c_1_r = 0, c_1_g = 0, c_1_b = 0, c_1_a = 0; // col 1 -> 4 color components {r,g,b,a}
+
+    // read 3 pixels of column 0
+    unsigned c_0_0 = cur_img(i - 1, x + 0), c_1_0 = cur_img(i + 0, x + 0), c_2_0 = cur_img(i + 1, x + 0);
+    // read 3 pixels of column 1
+    unsigned c_0_1 = cur_img(i - 1, x + 1), c_1_1 = cur_img(i + 0, x + 1), c_2_1 = cur_img(i + 1, x + 1);
+
+    // reduction of the pixels of column 0 (per components {r,g,b,a})
+    c_0_r += ezv_c2r(c_0_0); c_0_g += ezv_c2g(c_0_0); c_0_b += ezv_c2b(c_0_0); c_0_a += ezv_c2a(c_0_0);
+    c_0_r += ezv_c2r(c_1_0); c_0_g += ezv_c2g(c_1_0); c_0_b += ezv_c2b(c_1_0); c_0_a += ezv_c2a(c_1_0);
+    c_0_r += ezv_c2r(c_2_0); c_0_g += ezv_c2g(c_2_0); c_0_b += ezv_c2b(c_2_0); c_0_a += ezv_c2a(c_2_0);
+
+    // reduction of the pixels of column 1 (per components {r,g,b,a})
+    c_1_r += ezv_c2r(c_0_1); c_1_g += ezv_c2g(c_0_1); c_1_b += ezv_c2b(c_0_1); c_1_a += ezv_c2a(c_0_1);
+    c_1_r += ezv_c2r(c_1_1); c_1_g += ezv_c2g(c_1_1); c_1_b += ezv_c2b(c_1_1); c_1_a += ezv_c2a(c_1_1);
+    c_1_r += ezv_c2r(c_2_1); c_1_g += ezv_c2g(c_2_1); c_1_b += ezv_c2b(c_2_1); c_1_a += ezv_c2a(c_2_1);
+
+    uint16x8x4_t r_c_0_h;
+    uint16x8x4_t r_c_1_h, r_c_1_l;
+    uint16x8x4_t r_c_2_h, r_c_2_l; // here we need both 
+    
+    uint16x8x4_t r_c_2_l_0_h, r_c_2_l_0_l;
+    uint16x8x4_t r_c_2_l_1_h, r_c_2_l_1_l;
+    uint16x8x4_t r_c_2_l_2_h, r_c_2_l_2_l;
+
+    uint16x8x4_t left_l, left_h;
+    uint16x8x4_t right_l, right_h; 
+    uint16x8x4_t sum_l, sum_h; 
+
+    uint8x16x4_t sum;
+
+    uint32x4x4_t sum_l_l, sum_l_h, sum_h_l, sum_h_h;
+
+    float32x4x4_t sumf_l_l, sumf_l_h, sumf_h_l, sumf_h_h;
+
+    // loop over x (start from +1, end at -1 => no border)
+    for (int j = x + 1; j < x + width - 1; j+16) {
+      uint16_t c_2_r = 0, c_2_g = 0, c_2_b = 0, c_2_a = 0; // col 2 -> 4 color components {r,g,b,a}
+
+      //point 2
+      /*uint8x16_t r_c_2_l_0 = vld1q_u8((uint8_t*)&cur_img(i - 1, j + 4));
+      uint8x16_t r_c_2_l_1 = vld1q_u8((uint8_t*)&cur_img(i + 0, j + 4));
+      uint8x16_t r_c_2_l_2 = (uint8x16_t)vld1q_u8((uint8_t*)&cur_img(i + 1, j + 4));*/
+
+      // point3
+      uint8x16x4_t r_c_2_l_0_4 = vld4q_u8((uint8_t*)&cur_img(i - 1, j)); // [[ r x 16 ] [ g x 16 ] [ b x 16 ] [ a x 16 ]]
+      uint8x16x4_t r_c_2_l_1_4 = vld4q_u8((uint8_t*)&cur_img(i + 0, j));
+      uint8x16x4_t r_c_2_l_2_4 = vld4q_u8((uint8_t*)&cur_img(i + 1, j));
+      
+      float32_t p = 9;
+      float32x4_t r_nine = vld1q_dup_f32(&p);
+
+      for(int index=0; index<4; index++){
+        r_c_2_l_0_l.val[index] = vmovl_u8(vget_low_u8(r_c_2_l_0_4.val[index]));
+        r_c_2_l_0_h.val[index] = vmovl_u8(vget_high_u8(r_c_2_l_0_4.val[index]));
+
+        r_c_2_l_1_l.val[index] = vmovl_u8(vget_low_u8(r_c_2_l_1_4.val[index]));
+        r_c_2_l_1_h.val[index] = vmovl_u8(vget_high_u8(r_c_2_l_1_4.val[index]));
+
+        r_c_2_l_2_l.val[index] = vmovl_u8(vget_low_u8(r_c_2_l_2_4.val[index]));
+        r_c_2_l_2_h.val[index] = vmovl_u8(vget_high_u8(r_c_2_l_2_4.val[index]));
+
+        // reduction
+        r_c_2_l.val[index] = vaddq_u16(r_c_2_l_2_l.val[index],vaddq_u16(r_c_2_l_1_l.val[index], r_c_2_l_0_l.val[index])); // line 0 + line 1 low part
+        r_c_2_h.val[index] = vaddq_u16(r_c_2_l_2_h.val[index],vaddq_u16(r_c_2_l_1_h.val[index], r_c_2_l_0_h.val[index])); // line 0 + line 1 high part
+
+        // 6. left-right pattern
+        left_l.val[index]  = vextq_u16(r_c_0_h.val[index], r_c_1_l.val[index], 7);  // [15,0,1,2,3,4,5,6]
+        right_l.val[index] = vextq_u16(r_c_1_l.val[index], r_c_1_h.val[index], 1); // [1,2,3,4,5,6,7,8]
+
+        left_h.val[index]  = vextq_u16(r_c_1_l.val[index], r_c_1_h.val[index], 7); // [7, 8, 9, 10, 11, 12, 13, 14] 
+        right_h.val[index] = vextq_u16(r_c_1_h.val[index], r_c_2_l.val[index], 1); // [9, 10, 11, 12, 13, 14, 15, 0]
+
+        sum_l.val[index] =  vaddq_u16(vaddq_u16(left_l.val[index], r_c_1_l.val[index]), right_l.val[index]);
+        sum_h.val[index] =  vaddq_u16(vaddq_u16(left_h.val[index], r_c_1_h.val[index]), right_h.val[index]);
+
+        // 7. promotion to uint32x4_t
+        sum_l_l.val[index] = vmovl_u16(vget_low_u16(sum_l.val[index]));
+        sum_l_h.val[index] = vmovl_u16(vget_high_u16(sum_l.val[index]));
+        sum_h_l.val[index] = vmovl_u16(vget_low_u16(sum_h.val[index]));
+        sum_h_h.val[index] = vmovl_u16(vget_high_u16(sum_h.val[index]));
+      
+        // 7. convert to float32x4_t
+        sumf_l_l.val[index] = vcvtq_n_f32_u32(sum_l_l.val[index], 10);
+        sumf_l_h.val[index] = vcvtq_n_f32_u32(sum_l_h.val[index], 10);
+        sumf_h_l.val[index] = vcvtq_n_f32_u32(sum_h_l.val[index], 10);
+        sumf_h_h.val[index] = vcvtq_n_f32_u32(sum_h_h.val[index], 10);
+        
+        // 8. divison by 9
+        sumf_l_l.val[index] = vdivq_f32(sumf_l_l.val[index], r_nine);
+        sumf_l_h.val[index] = vdivq_f32(sumf_l_h.val[index], r_nine);
+        sumf_h_l.val[index] = vdivq_f32(sumf_h_l.val[index], r_nine);
+        sumf_h_h.val[index] = vdivq_f32(sumf_h_h.val[index], r_nine);
+
+        // 9. convert back to uint32x4_t
+        sum_l_l.val[index] = vcvtq_n_u32_f32(sumf_l_l.val[index], 10);
+        sum_l_h.val[index] = vcvtq_n_u32_f32(sumf_l_h.val[index], 10);
+        sum_h_l.val[index] = vcvtq_n_u32_f32(sumf_h_l.val[index], 10);
+        sum_h_h.val[index] = vcvtq_n_u32_f32(sumf_h_h.val[index], 10);
+
+        // 10. convert back to uint16x8_t 
+        sum_l.val[index] = vcombine_u16(vqmovn_u32(sum_l_l.val[index]), vqmovn_u32(sum_l_h.val[index]));
+        sum_h.val[index] = vcombine_u16(vqmovn_u32(sum_h_l.val[index]), vqmovn_u32(sum_h_h.val[index]));
+
+        // 11. convert back to uint8x16_t
+        sum.val[index] = vcombine_u8(vqmovn_u16(sum_l.val[index]), vqmovn_u16(sum_h.val[index]));
+       
+      }
+
+      // 12. store
+      
+      // 13. variable rotation
+
+
+      // variables rotations (col0 <- col1 and col1 <- col2)
+      c_0_r = c_1_r; c_0_g = c_1_g; c_0_b = c_1_b; c_0_a = c_1_a;
+      c_1_r = c_2_r; c_1_g = c_2_g; c_1_b = c_2_b; c_1_a = c_2_a;
+
+      // write the current pixel
+      next_img(i, j) = ezv_rgba (r, g, b, a);
+    }
+  }
+
+  // left-right borders size
+  uint32_t bsize = 1;
+  // compute the borders
+  compute_borders(x, y, width, height, bsize);
+
   return 0;
 }
 
