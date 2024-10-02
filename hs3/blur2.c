@@ -458,9 +458,11 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
       }
 
       // 12. store
+      //vst4q_u8((uint8_t*)&next_img(i, j), sum);
       
       // 13. variable rotation
-
+      //r_c_0_h = r_c_1_h;
+      //r_c_1_h = r_c_2_h;
 
       // variables rotations (col0 <- col1 and col1 <- col2)
       c_0_r = c_1_r; c_0_g = c_1_g; c_0_b = c_1_b; c_0_a = c_1_a;
