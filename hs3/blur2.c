@@ -481,6 +481,23 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
   return 0;
 }
 
+//We extend the simulated division by 9 operation in Code 2 to a vectorized version 
+//that can handle 128 bits (i.e. 8 16-bit integers) in one operation.
+uint16x8_t urrot1_neon_div9_u16(uint16x8_t n) {
+    // q1 = n - (n >> 3)
+    uint16x8_t q1 = vsubq_u16(n, vshrq_n_u16(n, 3));
+    // q1 += (q1 >> 6)
+    q1 = vaddq_u16(q1, vshrq_n_u16(q1, 6));
+    // q2 = q1 >> 3
+    uint16x8_t q2 = vshrq_n_u16(q1, 3);
+    // r = n - (q1 + q2)
+    uint16x8_t r = vsubq_u16(n, vaddq_u16(q1, q2));
+    // r = q2 + ((r + 7) >> 4)
+    r = vaddq_u16(q2, vshrq_n_u16(vaddq_u16(r, vdupq_n_u16(7)), 4));
+    return r;
+}
+
+
 int blur2_do_tile_urrot1_neon_div9_u16 (int x, int y, int width, int height) {
   // TODO
   return 0;
