@@ -504,8 +504,83 @@ int blur2_do_tile_urrot1_neon_div9_u16 (int x, int y, int width, int height) {
 }
 
 int blur2_do_tile_urrot2_neon_div9_f32 (int x, int y, int width, int height) {
-  // TODO
-  return 0;
+  for (int i = y + 1; i < y + height - 1; i++) {
+        
+        uint16x8_t c_0_l, c_0_h, c_1_l, c_1_h, c_2_l, c_2_h;
+        uint16x8_t left_l, left_h, right_l, right_h;
+        uint16x8_t sum_l, sum_h;
+        uint32x4_t sum_l_l, sum_l_h, sum_h_l, sum_h_h;
+        float32x4_t sumf_l_l, sumf_l_h, sumf_h_l, sumf_h_h;
+
+        // loop over x (start from +1, end at -1 => no border)
+        for (int j = x + 1; j < x + width - 1; j += 16) {
+            // Use the vld1q_u8 instructions
+            uint8x16x4_t r_c_2_l_0_4 = vld4q_u8((const uint8_t*)&cur_img(i - 1, j));
+            uint8x16x4_t r_c_2_l_1_4 = vld4q_u8((const uint8_t*)&cur_img(i + 0, j));
+            uint8x16x4_t r_c_2_l_2_4 = vld4q_u8((const uint8_t*)&cur_img(i + 1, j));
+
+            //Promote the 8-bit components into 16-bit components
+            c_2_l = vaddq_u16(vmovl_u8(vget_low_u8(r_c_2_l_0_4.val[0])),
+                              vaddq_u16(vmovl_u8(vget_low_u8(r_c_2_l_1_4.val[0])),
+                                        vmovl_u8(vget_low_u8(r_c_2_l_2_4.val[0]))));
+            c_2_h = vaddq_u16(vmovl_u8(vget_high_u8(r_c_2_l_0_4.val[0])),
+                              vaddq_u16(vmovl_u8(vget_high_u8(r_c_2_l_1_4.val[0])),
+                                        vmovl_u8(vget_high_u8(r_c_2_l_2_4.val[0]))));
+
+            // 3. left-right
+            left_l = vextq_u16(c_0_l, c_1_l, 7);
+            right_l = vextq_u16(c_1_l, c_2_l, 1);
+            left_h = vextq_u16(c_0_h, c_1_h, 7);
+            right_h = vextq_u16(c_1_h, c_2_h, 1);
+
+            sum_l = vaddq_u16(vaddq_u16(left_l, c_1_l), right_l);
+            sum_h = vaddq_u16(vaddq_u16(left_h, c_1_h), right_h);
+
+            // 4. promote the results to uint32x4_t registers.
+            sum_l_l = vmovl_u16(vget_low_u16(sum_l));
+            sum_l_h = vmovl_u16(vget_high_u16(sum_l));
+            sum_h_l = vmovl_u16(vget_low_u16(sum_h));
+            sum_h_h = vmovl_u16(vget_high_u16(sum_h));
+
+            sumf_l_l = vcvtq_f32_u32(sum_l_l);
+            sumf_l_h = vcvtq_f32_u32(sum_l_h);
+            sumf_h_l = vcvtq_f32_u32(sum_h_l);
+            sumf_h_h = vcvtq_f32_u32(sum_h_h);
+
+            // 5. Perform the division by 9 on 32-bit floating-point
+            float32x4_t r_nine = vdupq_n_f32(9.0f);
+            sumf_l_l = vdivq_f32(sumf_l_l, r_nine);
+            sumf_l_h = vdivq_f32(sumf_l_h, r_nine);
+            sumf_h_l = vdivq_f32(sumf_h_l, r_nine);
+            sumf_h_h = vdivq_f32(sumf_h_h, r_nine);
+
+            // 6. Convert back the float32x4_t resulting registers into uint32x4_t registers.
+            sum_l_l = vcvtq_u32_f32(sumf_l_l);
+            sum_l_h = vcvtq_u32_f32(sumf_l_h);
+            sum_h_l = vcvtq_u32_f32(sumf_h_l);
+            sum_h_h = vcvtq_u32_f32(sumf_h_h);
+
+            // 7. Convert back the uint32x4_t registers into uint16x8_t registers.
+            sum_l = vcombine_u16(vqmovn_u32(sum_l_l), vqmovn_u32(sum_l_h));
+            sum_h = vcombine_u16(vqmovn_u32(sum_h_l), vqmovn_u32(sum_h_h));
+
+            // 8. Convert back the uint16x8_t registers into uint8x16_t registers
+            uint8x16_t result = vcombine_u8(vqmovn_u16(sum_l), vqmovn_u16(sum_h));
+
+            // 9. store
+            vst4q_u8((uint8_t*)&next_img(i, j), result);
+
+            // 10
+            c_0_l = c_1_l; c_0_h = c_1_h;
+            c_1_l = c_2_l; c_1_h = c_2_h;
+        }
+    }
+
+    uint32_t bsize = 1;
+    compute_borders(x, y, width, height, bsize);
+
+    return 0;
+}
 }
 
 int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
