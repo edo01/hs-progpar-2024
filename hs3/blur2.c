@@ -2,6 +2,8 @@
 
 #include <omp.h>
 
+#define __ARM_NEON__
+
 ///////////////////////////// Sequential version (tiled)
 // Suggested cmdline(s):
 // ./run -l images/1024.png -k blur2 -v seq -si
@@ -167,7 +169,6 @@ void compute_borders(int x, int y, int width, int height, int bsize) {
     }
   }
 }
-
 int blur2_do_tile_urrot1 (int x, int y, int width, int height)
 {
   // loop over y (start from +1, end at -1 => no border)
@@ -345,129 +346,246 @@ void print_reg_f32(const float32x4_t r, const char* name) {
 }
 
 int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
+  /* #########################################################################
+   * #########################################################################
+   * Variables notation: ^r(a[0-4])?_c_[0-3]_l_[0-2]_u[8,16,32,64]
+   * r -> register
+   * a[0-4] -> array of registers and its dimension
+   * c_[0-2] -> column number
+   * l_[0-2] -> line number
+   * u[8,16,32,64] -> type of the registers
+   * 
+   * Example ra4_c_2_l_0_u8 -> array of four registers u_0, right column, first line 
+   * #########################################################################
+   * #########################################################################
+   */
+
+  /*
+   * Contain the deinterlived pixel colors of the right group column. One array
+   * for each line.
+   */
+  uint8x16x4_t ra4_c_0_l_0_u8, ra4_c_0_l_0_u8, ra4_c_0_l_0_u8;
+  uint8x16x4_t ra4_c_1_l_0_u8, ra4_c_1_l_1_u8, ra4_c_1_l_2_u8;
+  uint8x16x4_t ra4_c_2_l_0_u8, ra4_c_2_l_1_u8, ra4_c_2_l_2_u8;
+  uint8x16x4_t ra4_sum_u8;
+
+  /**
+   * Contains the deinterlived pixel colors of the right group column
+   * extended to 16 bits. Two array, one for the lower and on for higher part, for each
+   * line and for each column.
+   */
+  uint16_t zero = 0;
+  uint16x8x4_t ra4_c_0_l_1_u16_h; // left column, only the higher part of the cetral row of the pixels is needed
+  
+  uint16x8x4_t ra4_c_1_l_0_u16_h, ra4_c_1_l_0_u16_l; // central column, first line
+  uint16x8x4_t ra4_c_1_l_1_u16_h, ra4_c_1_l_1_u16_l; // central column, second line
+  uint16x8x4_t ra4_c_1_l_2_u16_h, ra4_c_1_l_2_u16_l; // central column, third line
+  
+  uint16x8x4_t ra4_c_2_l_0_u16_h, ra4_c_2_l_0_u16_l; // right column, first line
+  uint16x8x4_t ra4_c_2_l_1_u16_h, ra4_c_2_l_1_u16_l; // right column, second line
+  uint16x8x4_t ra4_c_2_l_2_u16_h, ra4_c_2_l_2_u16_l; // right column, third line
+
+  // for storing the sum of the pixels on the higher part of the central column
+  // used in variable reduction
+  uint16x8x4_t ra4_c_1_l_1_u16_h_temp;
+
+  // To store shiffted values for the reduction
+  uint16x8x4_t ra4_left_l, ra4_left_h;
+  uint16x8x4_t ra4_right_l, ra4_right_h; 
+
+  // for the promotion to 32 bits
+  uint32x4x4_t ra4_sum_l_l, ra4_sum_l_h, ra4_sum_h_l, ra4_sum_h_h;
+
+  // for the division by 9
+  float32x4x4_t ra4_sumf_l_l, ra4_sumf_l_h, ra4_sumf_h_l, ra4_sumf_h_h;
+  float32_t p = 9;
+  float32x4_t R_NINE = vld1q_dup_f32(&p); // broadcast the 
+
   // loop over y (start from +1, end at -1 => no border)
   for (int i = y + 1; i < y + height - 1; i++) {
-    uint16_t c_0_r = 0, c_0_g = 0, c_0_b = 0, c_0_a = 0; // col 0 -> 4 color components {r,g,b,a}
-    uint16_t c_1_r = 0, c_1_g = 0, c_1_b = 0, c_1_a = 0; // col 1 -> 4 color components {r,g,b,a}
-
-    // read 3 pixels of column 0
-    unsigned c_0_0 = cur_img(i - 1, x + 0), c_1_0 = cur_img(i + 0, x + 0), c_2_0 = cur_img(i + 1, x + 0);
-    // read 3 pixels of column 1
-    unsigned c_0_1 = cur_img(i - 1, x + 1), c_1_1 = cur_img(i + 0, x + 1), c_2_1 = cur_img(i + 1, x + 1);
-
-    // reduction of the pixels of column 0 (per components {r,g,b,a})
-    c_0_r += ezv_c2r(c_0_0); c_0_g += ezv_c2g(c_0_0); c_0_b += ezv_c2b(c_0_0); c_0_a += ezv_c2a(c_0_0);
-    c_0_r += ezv_c2r(c_1_0); c_0_g += ezv_c2g(c_1_0); c_0_b += ezv_c2b(c_1_0); c_0_a += ezv_c2a(c_1_0);
-    c_0_r += ezv_c2r(c_2_0); c_0_g += ezv_c2g(c_2_0); c_0_b += ezv_c2b(c_2_0); c_0_a += ezv_c2a(c_2_0);
-
-    // reduction of the pixels of column 1 (per components {r,g,b,a})
-    c_1_r += ezv_c2r(c_0_1); c_1_g += ezv_c2g(c_0_1); c_1_b += ezv_c2b(c_0_1); c_1_a += ezv_c2a(c_0_1);
-    c_1_r += ezv_c2r(c_1_1); c_1_g += ezv_c2g(c_1_1); c_1_b += ezv_c2b(c_1_1); c_1_a += ezv_c2a(c_1_1);
-    c_1_r += ezv_c2r(c_2_1); c_1_g += ezv_c2g(c_2_1); c_1_b += ezv_c2b(c_2_1); c_1_a += ezv_c2a(c_2_1);
-
-    uint16x8x4_t r_c_0_h;
-    uint16x8x4_t r_c_1_h, r_c_1_l;
-    uint16x8x4_t r_c_2_h, r_c_2_l; // here we need both 
+    //PROLOGO-----------------
+    // another strategy could be doing the scalar sum and then using conversion 
+    ra4_c_1_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, x));
+    ra4_c_1_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x));
+    ra4_c_1_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x));
     
-    uint16x8x4_t r_c_2_l_0_h, r_c_2_l_0_l;
-    uint16x8x4_t r_c_2_l_1_h, r_c_2_l_1_l;
-    uint16x8x4_t r_c_2_l_2_h, r_c_2_l_2_l;
+    ra4_c_1_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, x + 1));
+    ra4_c_1_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x + 1));
+    ra4_c_1_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x + 1));
+    
 
-    uint16x8x4_t left_l, left_h;
-    uint16x8x4_t right_l, right_h; 
-    uint16x8x4_t sum_l, sum_h; 
 
-    uint8x16x4_t sum;
+    for(int index=0; index<4; index++){
+      // first line
+      ra4_c_0_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_0_u8.val[index]));
+      ra4_c_0_l_0_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_0_l_0_u8.val[index]));
 
-    uint32x4x4_t sum_l_l, sum_l_h, sum_h_l, sum_h_h;
+      ra4_c_1_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_0_u8.val[index]));
+      ra4_c_1_l_0_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_0_u8.val[index]));
 
-    float32x4x4_t sumf_l_l, sumf_l_h, sumf_h_l, sumf_h_h;
+      // second line
+      ra4_c_0_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_1_u8.val[index]));
+      ra4_c_0_l_1_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_0_l_1_u8.val[index]));
+      
+      ra4_c_1_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_1_u8.val[index]));
+      ra4_c_1_l_1_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_1_u8.val[index]));
 
+      // third line
+      ra4_c_0_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_2_u8.val[index]));
+      ra4_c_0_l_2_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_0_l_2_u8.val[index]));
+
+      ra4_c_1_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_2_u8.val[index]));
+      ra4_c_1_l_2_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_2_u8.val[index]));
+
+      // reduction
+      ra4_c_0_l_1_u16_l.val[index] = vaddq_u16(ra4_c_0_l_2_u16_l.val[index],
+                                              vaddq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_0_l_0_u16_l.val[index])); // lower part
+      ra4_c_0_l_1_u16_h.val[index] = vaddq_u16(ra4_c_0_l_2_u16_h.val[index],
+                                              vaddq_u16(ra4_c_1_l_1_u16_h.val[index], ra4_c_0_l_0_u16_h.val[index])); // higher part
+
+      ra4_c_1_l_1_u16_l.val[index] = vaddq_u16(ra4_c_1_l_2_u16_l.val[index],
+                                              vaddq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_1_l_0_u16_l.val[index])); // lower part
+      ra4_c_1_l_1_u16_h.val[index] = vaddq_u16(ra4_c_1_l_2_u16_h.val[index],
+                                              vaddq_u16(ra4_c_1_l_1_u16_h.val[index], ra4_c_1_l_0_u16_h.val[index])); // higher part
+
+      // move the first bit to the last position
+      ra4_c_0_l_1_u16_l.val[index] = vextq_u16(ra4_c_0_l_1_u16_l.val[index], ra4_c_0_l_1_u16_l.val[index], 1);
+      ra4_c_0_l_1_u16_h.val[index] = vextq_u16(ra4_c_0_l_1_u16_h.val[index], ra4_c_0_l_1_u16_h.val[index], 1);    
+    }
+    
+
+    //-------------------------------------------------------------------
+    
     // loop over x (start from +1, end at -1 => no border)
-    for (int j = x + 1; j < x + width - 1; j+16) {
-      uint16_t c_2_r = 0, c_2_g = 0, c_2_b = 0, c_2_a = 0; // col 2 -> 4 color components {r,g,b,a}
+    for (int j = x + 1; j < x + width; j+=16) {
 
-      //point 2
+      // 2.
       /*uint8x16_t r_c_2_l_0 = vld1q_u8((uint8_t*)&cur_img(i - 1, j + 4));
       uint8x16_t r_c_2_l_1 = vld1q_u8((uint8_t*)&cur_img(i + 0, j + 4));
       uint8x16_t r_c_2_l_2 = (uint8x16_t)vld1q_u8((uint8_t*)&cur_img(i + 1, j + 4));*/
 
-      // point3
-      uint8x16x4_t r_c_2_l_0_4 = vld4q_u8((uint8_t*)&cur_img(i - 1, j)); // [[ r x 16 ] [ g x 16 ] [ b x 16 ] [ a x 16 ]]
-      uint8x16x4_t r_c_2_l_1_4 = vld4q_u8((uint8_t*)&cur_img(i + 0, j));
-      uint8x16x4_t r_c_2_l_2_4 = vld4q_u8((uint8_t*)&cur_img(i + 1, j));
+      // 3. Memory deinterliving
+      /* 
+       * Use vld4q_u8 instructions to perform a deinterleving of the four pixel components.
+       * For all the three lines of the right column-group, we load from memory 16 pixels 
+       * deinterliving the colors. Now each group of pixel is composed by an array of 4 registers 
+       * 8b x 16 elements.
+       */
+      ra4_c_2_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, j + 16)); // [[ r x 16 ] [ g x 16 ] [ b x 16 ] [ a x 16 ]]
+      ra4_c_2_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, j + 16));
+      ra4_c_2_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, j + 16));
       
-      float32_t p = 9;
-      float32x4_t r_nine = vld1q_dup_f32(&p);
 
       for(int index=0; index<4; index++){
-        r_c_2_l_0_l.val[index] = vmovl_u8(vget_low_u8(r_c_2_l_0_4.val[index]));
-        r_c_2_l_0_h.val[index] = vmovl_u8(vget_high_u8(r_c_2_l_0_4.val[index]));
+        // 4. 
+        /*
+         * Promote the 8-bit components into 16-bit components to perform the accumulation
+         * First we extract the lower and higher part of the 8-bit components using the 
+         * vget_low_u8 and vget_high_u8.
+         * Then we promote them to 16-bit components using the vmovl_u8 instruction.
+         *  
+         */
+        // first line
+        ra4_c_2_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_2_l_0_u8.val[index]));
+        ra4_c_2_l_0_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_2_l_0_u8.val[index]));
 
-        r_c_2_l_1_l.val[index] = vmovl_u8(vget_low_u8(r_c_2_l_1_4.val[index]));
-        r_c_2_l_1_h.val[index] = vmovl_u8(vget_high_u8(r_c_2_l_1_4.val[index]));
+        // second line
+        ra4_c_2_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_2_l_1_u8.val[index]));
+        ra4_c_2_l_1_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_2_l_1_u8.val[index]));
 
-        r_c_2_l_2_l.val[index] = vmovl_u8(vget_low_u8(r_c_2_l_2_4.val[index]));
-        r_c_2_l_2_h.val[index] = vmovl_u8(vget_high_u8(r_c_2_l_2_4.val[index]));
+        // third line
+        ra4_c_2_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_2_l_2_u8.val[index]));
+        ra4_c_2_l_2_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_2_l_2_u8.val[index]));
 
-        // reduction
-        r_c_2_l.val[index] = vaddq_u16(r_c_2_l_2_l.val[index],vaddq_u16(r_c_2_l_1_l.val[index], r_c_2_l_0_l.val[index])); // line 0 + line 1 low part
-        r_c_2_h.val[index] = vaddq_u16(r_c_2_l_2_h.val[index],vaddq_u16(r_c_2_l_1_h.val[index], r_c_2_l_0_h.val[index])); // line 0 + line 1 high part
+        // 5. Compute the reduction of the second column
+        /*
+         * Accumulate the color component of the right column-group. The accumulation is performed
+         * using 16 bit registers.
+         */
+        ra4_c_2_l_1_u16_l.val[index] = vaddq_u16(ra4_c_2_l_2_u16_l.val[index],
+                                                vaddq_u16(ra4_c_2_l_1_u16_l.val[index], ra4_c_2_l_0_u16_l.val[index])); // lower part
+        ra4_c_2_l_1_u16_h.val[index] = vaddq_u16(ra4_c_2_l_2_u16_h.val[index],
+                                                vaddq_u16(ra4_c_2_l_1_u16_h.val[index], ra4_c_2_l_0_u16_h.val[index])); // higher part
 
         // 6. left-right pattern
-        left_l.val[index]  = vextq_u16(r_c_0_h.val[index], r_c_1_l.val[index], 7);  // [15,0,1,2,3,4,5,6]
-        right_l.val[index] = vextq_u16(r_c_1_l.val[index], r_c_1_h.val[index], 1); // [1,2,3,4,5,6,7,8]
+        /*
+         * Perform the left-right pattern to compute the sum of the pixel components. 
+         *
+         * [lh8, lh9, lh10, lh11, lh12, lh13, lh14, lh15] -> ra4_c_0_l_1_u16_h
+         * [cl0, cl1, cl2, cl3, cl4, cl5, cl6, cl7] -> ra4_c_1_l_1_u16_l
+         * [ch8, ch9, ch10, ch11, ch12, ch13, ch14, ch15] -> ra4_c_1_l_1_u16_h
+         * [rl0, rl1, rl2, rl3, rl4, rl5, rl6, rl7] -> ra4_c_2_l_1_u16_l
+         * 
+         * From horizontal to vertical computation:
+         * - lower part:
+         * [cl1, cl2, cl3, cl4, cl5, cl6, cl7, ch8] -> right lower
+         * [cl0, cl1, cl2, cl3, cl4, cl5, cl6, cl7] -> central lower
+         * [lh15, cl0, cl1, cl2, cl3, cl4, cl5, cl6] -> left lower
+         * 
+         * - higher part:
+         * [ch9, ch10, ch11, ch12, ch13, ch14, ch15, rl0] -> right higher
+         * [ch8, ch9, ch10, ch11, ch12, ch13, ch14, rl0] -> central higher
+         * [cl7, ch8, ch9, ch10, ch11, ch12, ch13, ch14] -> left higher
+         * 
+         * 
+         */
+        ra4_left_l.val[index]  = vextq_u16(ra4_c_0_l_1_u16_h.val[index], ra4_c_1_l_1_u16_l.val[index], 7);  // [lh15, cl0, cl1, cl2, cl3, cl4, cl5, cl6]
+        ra4_right_l.val[index] = vextq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_1_l_1_u16_h.val[index], 1); // [cl1, cl2, cl3, cl4, cl5, cl6, cl7, ch8]
 
-        left_h.val[index]  = vextq_u16(r_c_1_l.val[index], r_c_1_h.val[index], 7); // [7, 8, 9, 10, 11, 12, 13, 14] 
-        right_h.val[index] = vextq_u16(r_c_1_h.val[index], r_c_2_l.val[index], 1); // [9, 10, 11, 12, 13, 14, 15, 0]
+        ra4_left_h.val[index]  = vextq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_1_l_1_u16_h.val[index], 7); //[cl7, ch8, ch9, ch10, ch11, ch12, ch13, ch14]
+        ra4_right_h.val[index] = vextq_u16(ra4_c_1_l_1_u16_h.val[index], ra4_c_2_l_1_u16_l.val[index], 1); // [ch9, ch10, ch11, ch12, ch13, ch14, ch15, rl0]
 
-        sum_l.val[index] =  vaddq_u16(vaddq_u16(left_l.val[index], r_c_1_l.val[index]), right_l.val[index]);
-        sum_h.val[index] =  vaddq_u16(vaddq_u16(left_h.val[index], r_c_1_h.val[index]), right_h.val[index]);
+        // store the previous value before overwrite 
+        ra4_c_1_l_1_u16_h_temp.val[index] = ra4_c_1_l_1_u16_h.val[index];
+
+        // vertical sum
+        ra4_c_1_l_1_u16_l.val[index] = vaddq_u16(vaddq_u16(ra4_left_l.val[index], ra4_c_1_l_1_u16_l.val[index]), ra4_right_l.val[index]); // sum of the lower part
+        ra4_c_1_l_1_u16_h.val[index] = vaddq_u16(vaddq_u16(ra4_left_h.val[index], ra4_c_1_l_1_u16_h.val[index]), ra4_right_h.val[index]); // sum of the higher part
 
         // 7. promotion to uint32x4_t
-        sum_l_l.val[index] = vmovl_u16(vget_low_u16(sum_l.val[index]));
-        sum_l_h.val[index] = vmovl_u16(vget_high_u16(sum_l.val[index]));
-        sum_h_l.val[index] = vmovl_u16(vget_low_u16(sum_h.val[index]));
-        sum_h_h.val[index] = vmovl_u16(vget_high_u16(sum_h.val[index]));
+        ra4_sum_l_l.val[index] = vmovl_u16(vget_low_u16(ra4_c_1_l_1_u16_l.val[index]));
+        ra4_sum_l_h.val[index] = vmovl_u16(vget_high_u16(ra4_c_1_l_1_u16_l.val[index]));
+        ra4_sum_h_l.val[index] = vmovl_u16(vget_low_u16(ra4_c_1_l_1_u16_h.val[index]));
+        ra4_sum_h_h.val[index] = vmovl_u16(vget_high_u16(ra4_c_1_l_1_u16_h.val[index]));
       
         // 7. convert to float32x4_t
-        sumf_l_l.val[index] = vcvtq_n_f32_u32(sum_l_l.val[index], 10);
-        sumf_l_h.val[index] = vcvtq_n_f32_u32(sum_l_h.val[index], 10);
-        sumf_h_l.val[index] = vcvtq_n_f32_u32(sum_h_l.val[index], 10);
-        sumf_h_h.val[index] = vcvtq_n_f32_u32(sum_h_h.val[index], 10);
+        ra4_sumf_l_l.val[index] = vcvtq_n_f32_u32(ra4_sum_l_l.val[index], 10);
+        ra4_sumf_l_h.val[index] = vcvtq_n_f32_u32(ra4_sum_l_h.val[index], 10);
+        ra4_sumf_h_l.val[index] = vcvtq_n_f32_u32(ra4_sum_h_l.val[index], 10);
+        ra4_sumf_h_h.val[index] = vcvtq_n_f32_u32(ra4_sum_h_h.val[index], 10);
         
         // 8. divison by 9
-        sumf_l_l.val[index] = vdivq_f32(sumf_l_l.val[index], r_nine);
-        sumf_l_h.val[index] = vdivq_f32(sumf_l_h.val[index], r_nine);
-        sumf_h_l.val[index] = vdivq_f32(sumf_h_l.val[index], r_nine);
-        sumf_h_h.val[index] = vdivq_f32(sumf_h_h.val[index], r_nine);
+        ra4_sumf_l_l.val[index] = vdivq_f32(ra4_sumf_l_l.val[index], R_NINE);
+        ra4_sumf_l_h.val[index] = vdivq_f32(ra4_sumf_l_h.val[index], R_NINE);
+        ra4_sumf_h_l.val[index] = vdivq_f32(ra4_sumf_h_l.val[index], R_NINE);
+        ra4_sumf_h_h.val[index] = vdivq_f32(ra4_sumf_h_h.val[index], R_NINE);
 
         // 9. convert back to uint32x4_t
-        sum_l_l.val[index] = vcvtq_n_u32_f32(sumf_l_l.val[index], 10);
-        sum_l_h.val[index] = vcvtq_n_u32_f32(sumf_l_h.val[index], 10);
-        sum_h_l.val[index] = vcvtq_n_u32_f32(sumf_h_l.val[index], 10);
-        sum_h_h.val[index] = vcvtq_n_u32_f32(sumf_h_h.val[index], 10);
+        ra4_sum_l_l.val[index] = vcvtq_n_u32_f32(ra4_sumf_l_l.val[index], 10);
+        ra4_sum_l_h.val[index] = vcvtq_n_u32_f32(ra4_sumf_l_h.val[index], 10);
+        ra4_sum_h_l.val[index] = vcvtq_n_u32_f32(ra4_sumf_h_l.val[index], 10);
+        ra4_sum_h_h.val[index] = vcvtq_n_u32_f32(ra4_sumf_h_h.val[index], 10);
 
         // 10. convert back to uint16x8_t 
-        sum_l.val[index] = vcombine_u16(vqmovn_u32(sum_l_l.val[index]), vqmovn_u32(sum_l_h.val[index]));
-        sum_h.val[index] = vcombine_u16(vqmovn_u32(sum_h_l.val[index]), vqmovn_u32(sum_h_h.val[index]));
+        ra4_c_1_l_1_u16_l.val[index] = vcombine_u16(vqmovn_u32(ra4_sum_l_l.val[index]), vqmovn_u32(ra4_sum_l_h.val[index]));
+        ra4_c_1_l_1_u16_h.val[index] = vcombine_u16(vqmovn_u32(ra4_sum_h_l.val[index]), vqmovn_u32(ra4_sum_h_h.val[index]));
 
         // 11. convert back to uint8x16_t
-        sum.val[index] = vcombine_u8(vqmovn_u16(sum_l.val[index]), vqmovn_u16(sum_h.val[index]));
-       
+        ra4_sum_u8.val[index] = vcombine_u8(vqmovn_u16(ra4_c_1_l_1_u16_l.val[index]), vqmovn_u16(ra4_c_1_l_1_u16_h.val[index]));
+
       }
+      // 12. store 
+      // use vst4 to store back and interleave the data
+      vst4q_u8((uint8_t*)&next_img(i, j), ra4_sum_u8);
 
-      // 12. store
-      
       // 13. variable rotation
+      // copy the lowest part of the middle column into the highest part of the left column ( we should pass the sum of the pixels)
+      // col 0 <- col 1
+      ra4_c_0_l_1_u16_h = ra4_c_1_l_1_u16_h_temp; 
+      // col 1 <- col 2
+      ra4_c_1_l_1_u16_l = ra4_c_2_l_1_u16_l;
+      ra4_c_1_l_1_u16_h = ra4_c_2_l_1_u16_h;
 
-
-      // variables rotations (col0 <- col1 and col1 <- col2)
-      c_0_r = c_1_r; c_0_g = c_1_g; c_0_b = c_1_b; c_0_a = c_1_a;
-      c_1_r = c_2_r; c_1_g = c_2_g; c_1_b = c_2_b; c_1_a = c_2_a;
-
-      // write the current pixel
-      next_img(i, j) = ezv_rgba (r, g, b, a);
     }
   }
 
