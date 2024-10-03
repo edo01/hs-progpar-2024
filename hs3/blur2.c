@@ -364,7 +364,7 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
    * Contain the deinterlived pixel colors of the right group column. One array
    * for each line.
    */
-  uint8x16x4_t ra4_c_0_l_0_u8, ra4_c_0_l_0_u8, ra4_c_0_l_0_u8;
+  uint8x16x4_t ra4_c_0_l_0_u8, ra4_c_0_l_1_u8, ra4_c_0_l_1_u8;
   uint8x16x4_t ra4_c_1_l_0_u8, ra4_c_1_l_1_u8, ra4_c_1_l_2_u8;
   uint8x16x4_t ra4_c_2_l_0_u8, ra4_c_2_l_1_u8, ra4_c_2_l_2_u8;
   uint8x16x4_t ra4_sum_u8;
