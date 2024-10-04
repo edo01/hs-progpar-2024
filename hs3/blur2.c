@@ -74,7 +74,8 @@ unsigned blur2_compute_tiled (unsigned nb_iter)
   return 0;
 }
 
-void compute_borders(int x, int y, int width, int height, int bsize) {
+void compute_borders(int x, int y, int width, int height, int bsize) 
+{
   assert(bsize > 0);
   // left -------------------------------------------------------------------------------------------------------------
   if (x == 0) {
@@ -169,6 +170,7 @@ void compute_borders(int x, int y, int width, int height, int bsize) {
     }
   }
 }
+
 int blur2_do_tile_urrot1 (int x, int y, int width, int height)
 {
   // loop over y (start from +1, end at -1 => no border)
@@ -345,6 +347,28 @@ void print_reg_f32(const float32x4_t r, const char* name) {
   printf("]\n");
 }
 
+/**
+ * Divide by 9 using a series of shifts and additions. In this 
+ * way we can avoid the division operation and the corresponding
+ * cost of conversion to float and back to integer.
+ */
+uint16x8_t neon_vdiv9_u16(uint16x8_t n) {
+    // q1 = n - (n >> 3)
+    uint16x8_t q1 = vsubq_u16(n, vshrq_n_u16(n, 3));
+    // q1 += (q1 >> 6)
+    q1 = vaddq_u16(q1, vshrq_n_u16(q1, 6));
+    // q2 = q1 >> 3
+    uint16x8_t q2 = vshrq_n_u16(q1, 3);
+    // r = n - (q1 + q2)
+    uint16x8_t r = vsubq_u16(n, vaddq_u16(q1, q2));
+    // r = q2 + ((r + 7) >> 4)
+    r = vaddq_u16(q2, vshrq_n_u16(vaddq_u16(r, vdupq_n_u16(7)), 4));
+    return r;
+}
+
+/**
+ * 
+ */
 int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
   /* #########################################################################
    * #########################################################################
@@ -364,18 +388,19 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
    * Contain the deinterlived pixel colors of the right group column. One array
    * for each line.
    */
-  uint8x16x4_t ra4_c_0_l_0_u8, ra4_c_0_l_1_u8, ra4_c_0_l_1_u8;
+  uint8x16x4_t ra4_c_0_l_0_u8, ra4_c_0_l_1_u8, ra4_c_0_l_2_u8;
   uint8x16x4_t ra4_c_1_l_0_u8, ra4_c_1_l_1_u8, ra4_c_1_l_2_u8;
   uint8x16x4_t ra4_c_2_l_0_u8, ra4_c_2_l_1_u8, ra4_c_2_l_2_u8;
   uint8x16x4_t ra4_sum_u8;
 
   /**
-   * Contains the deinterlived pixel colors of the right group column
-   * extended to 16 bits. Two array, one for the lower and on for higher part, for each
+   * Two array, one for the lower and one for higher part, for each
    * line and for each column.
-   */
-  uint16_t zero = 0;
-  uint16x8x4_t ra4_c_0_l_1_u16_h; // left column, only the higher part of the cetral row of the pixels is needed
+   */  
+  uint16x8x4_t ra4_c_0_l_0_u16_l; // left column, first line, no need for higher part
+  uint16x8x4_t ra4_c_0_l_1_u16_h, ra4_c_0_l_1_u16_l; // left column, second line
+  uint16x8x4_t ra4_c_0_l_2_u16_l; // left column, third line, no need for higher part
+  
   
   uint16x8x4_t ra4_c_1_l_0_u16_h, ra4_c_1_l_0_u16_l; // central column, first line
   uint16x8x4_t ra4_c_1_l_1_u16_h, ra4_c_1_l_1_u16_l; // central column, second line
@@ -403,58 +428,73 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
 
   // loop over y (start from +1, end at -1 => no border)
   for (int i = y + 1; i < y + height - 1; i++) {
-    // PROLOGUE-----------------
-    // another strategy could be doing the scalar sum and then using conversion 
-    ra4_c_1_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, x));
-    ra4_c_1_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x));
-    ra4_c_1_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x));
+    // #############################################################
+    //                      PROLOGUE
+    // #############################################################
+    /*
+     * In order to start the variable rotation, we need to precompute
+     * the left and central columns. The computation of the central column
+     * is done in the same way as the right column in the main loop. 
+     * Since the x-loop starts from the second pixel, the left column 
+     * is composed by only the first pixel of each line. So, one 
+     * possible strategy is to load to perform the exact same computation
+     * as the central column, but starting from the first pixel. After that,
+     * we can use vextq_u16 to shift the first pixel to the last position.
+     * 
+     * In this way, we can use simd instructions to perform the computation
+     * also for the first 16 pixels of each line instead of using scalar
+     * instructions.
+     */ 
+    ra4_c_0_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, x));
+    ra4_c_0_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x));
+    ra4_c_0_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x));
     
     ra4_c_1_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, x + 1));
     ra4_c_1_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x + 1));
     ra4_c_1_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x + 1));
-    
 
 
     for(int index=0; index<4; index++){
+      /*
+       * please note that we need only the lower part of the 16 bits for the 
+       * left column. The higher part is not used in the computation but only
+       * to store the first pixel for the computation in the loop.
+       */
       // first line
       ra4_c_0_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_0_u8.val[index]));
-      ra4_c_0_l_0_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_0_l_0_u8.val[index]));
-
+      
       ra4_c_1_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_0_u8.val[index]));
       ra4_c_1_l_0_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_0_u8.val[index]));
 
       // second line
       ra4_c_0_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_1_u8.val[index]));
-      ra4_c_0_l_1_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_0_l_1_u8.val[index]));
       
       ra4_c_1_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_1_u8.val[index]));
       ra4_c_1_l_1_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_1_u8.val[index]));
 
       // third line
       ra4_c_0_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_2_u8.val[index]));
-      ra4_c_0_l_2_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_0_l_2_u8.val[index]));
-
+      
       ra4_c_1_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_2_u8.val[index]));
       ra4_c_1_l_2_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_2_u8.val[index]));
 
       // reduction
       ra4_c_0_l_1_u16_l.val[index] = vaddq_u16(ra4_c_0_l_2_u16_l.val[index],
-                                              vaddq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_0_l_0_u16_l.val[index])); // lower part
-      ra4_c_0_l_1_u16_h.val[index] = vaddq_u16(ra4_c_0_l_2_u16_h.val[index],
-                                              vaddq_u16(ra4_c_1_l_1_u16_h.val[index], ra4_c_0_l_0_u16_h.val[index])); // higher part
-
+                                              vaddq_u16(ra4_c_0_l_1_u16_l.val[index], ra4_c_0_l_0_u16_l.val[index])); // lower part
+      
       ra4_c_1_l_1_u16_l.val[index] = vaddq_u16(ra4_c_1_l_2_u16_l.val[index],
                                               vaddq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_1_l_0_u16_l.val[index])); // lower part
       ra4_c_1_l_1_u16_h.val[index] = vaddq_u16(ra4_c_1_l_2_u16_h.val[index],
                                               vaddq_u16(ra4_c_1_l_1_u16_h.val[index], ra4_c_1_l_0_u16_h.val[index])); // higher part
 
-      // move the first bit to the last position
-      ra4_c_0_l_1_u16_l.val[index] = vextq_u16(ra4_c_0_l_1_u16_l.val[index], ra4_c_0_l_1_u16_l.val[index], 1);
-      ra4_c_0_l_1_u16_h.val[index] = vextq_u16(ra4_c_0_l_1_u16_h.val[index], ra4_c_0_l_1_u16_h.val[index], 1);    
+      // move the first bit to the last position using vextq_u16
+      ra4_c_0_l_1_u16_h.val[index] = vextq_u16(ra4_c_0_l_1_u16_h.val[index], ra4_c_0_l_1_u16_l.val[index], 1);    
     }
     
 
-    //-------------------------------------------------------------------
+    // #############################################################
+    //                      END PROLOGUE
+    // #############################################################
     
     // loop over x (start from +1, end at -1 => no border)
     for (int j = x + 1; j < x + width; j+=16) {
@@ -597,116 +637,911 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
   return 0;
 }
 
-//We extend the simulated division by 9 operation in Code 2 to a vectorized version 
-//that can handle 128 bits (i.e. 8 16-bit integers) in one operation.
-uint16x8_t urrot1_neon_div9_u16(uint16x8_t n) {
-    // q1 = n - (n >> 3)
-    uint16x8_t q1 = vsubq_u16(n, vshrq_n_u16(n, 3));
-    // q1 += (q1 >> 6)
-    q1 = vaddq_u16(q1, vshrq_n_u16(q1, 6));
-    // q2 = q1 >> 3
-    uint16x8_t q2 = vshrq_n_u16(q1, 3);
-    // r = n - (q1 + q2)
-    uint16x8_t r = vsubq_u16(n, vaddq_u16(q1, q2));
-    // r = q2 + ((r + 7) >> 4)
-    r = vaddq_u16(q2, vshrq_n_u16(vaddq_u16(r, vdupq_n_u16(7)), 4));
-    return r;
-}
-
-
 int blur2_do_tile_urrot1_neon_div9_u16 (int x, int y, int width, int height) {
-  // TODO
+  /* #########################################################################
+   * #########################################################################
+   * Variables notation: ^r(a[0-4])?_c_[0-3]_l_[0-2]_u[8,16,32,64]
+   * r -> register
+   * a[0-4] -> array of registers and its dimension
+   * c_[0-2] -> column number
+   * l_[0-2] -> line number
+   * u[8,16,32,64] -> type of the registers
+   * 
+   * Example ra4_c_2_l_0_u8 -> array of four registers u_0, right column, first line 
+   * #########################################################################
+   * #########################################################################
+   */
+
+  /*
+   * Contain the deinterlived pixel colors of the right group column. One array
+   * for each line.
+   */
+  uint8x16x4_t ra4_c_0_l_0_u8, ra4_c_0_l_1_u8, ra4_c_0_l_2_u8;
+  uint8x16x4_t ra4_c_1_l_0_u8, ra4_c_1_l_1_u8, ra4_c_1_l_2_u8;
+  uint8x16x4_t ra4_c_2_l_0_u8, ra4_c_2_l_1_u8, ra4_c_2_l_2_u8;
+  uint8x16x4_t ra4_sum_u8;
+
+
+  /**
+   * Two array, one for the lower and one for higher part, for each
+   * line and for each column.
+   */  
+  uint16x8x4_t ra4_c_0_l_0_u16_l; // left column, first line, no need for higher part
+  uint16x8x4_t ra4_c_0_l_1_u16_h, ra4_c_0_l_1_u16_l; // left column, second line
+  uint16x8x4_t ra4_c_0_l_2_u16_l; // left column, third line, no need for higher part
+  
+  
+  uint16x8x4_t ra4_c_1_l_0_u16_h, ra4_c_1_l_0_u16_l; // central column, first line
+  uint16x8x4_t ra4_c_1_l_1_u16_h, ra4_c_1_l_1_u16_l; // central column, second line
+  uint16x8x4_t ra4_c_1_l_2_u16_h, ra4_c_1_l_2_u16_l; // central column, third line
+  
+  uint16x8x4_t ra4_c_2_l_0_u16_h, ra4_c_2_l_0_u16_l; // right column, first line
+  uint16x8x4_t ra4_c_2_l_1_u16_h, ra4_c_2_l_1_u16_l; // right column, second line
+  uint16x8x4_t ra4_c_2_l_2_u16_h, ra4_c_2_l_2_u16_l; // right column, third line
+
+  // for storing the sum of the pixels on the higher part of the central column
+  // used in variable reduction
+  uint16x8x4_t ra4_c_1_l_1_u16_h_temp;
+
+  // To store shiffted values for the reduction
+  uint16x8x4_t ra4_left_l, ra4_left_h;
+  uint16x8x4_t ra4_right_l, ra4_right_h; 
+
+  // loop over y (start from +1, end at -1 => no border)
+  for (int i = y + 1; i < y + height - 1; i++) {
+    // #############################################################
+    //                      PROLOGUE
+    // #############################################################
+    /*
+     * In order to start the variable rotation, we need to precompute
+     * the left and central columns. The computation of the central column
+     * is done in the same way as the right column in the main loop. 
+     * Since the x-loop starts from the second pixel, the left column 
+     * is composed by only the first pixel of each line. So, one 
+     * possible strategy is to load to perform the exact same computation
+     * as the central column, but starting from the first pixel. After that,
+     * we can use vextq_u16 to shift the first pixel to the last position.
+     * 
+     * In this way, we can use simd instructions to perform the computation
+     * also for the first 16 pixels of each line instead of using scalar
+     * instructions.
+     */ 
+    ra4_c_0_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, x));
+    ra4_c_0_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x));
+    ra4_c_0_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x));
+    
+    ra4_c_1_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, x + 1));
+    ra4_c_1_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x + 1));
+    ra4_c_1_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x + 1));
+
+
+    for(int index=0; index<4; index++){
+      /*
+       * please note that we need only the lower part of the 16 bits for the 
+       * left column. The higher part is not used in the computation but only
+       * to store the first pixel for the computation in the loop.
+       */
+      // first line
+      ra4_c_0_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_0_u8.val[index]));
+      
+      ra4_c_1_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_0_u8.val[index]));
+      ra4_c_1_l_0_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_0_u8.val[index]));
+
+      // second line
+      ra4_c_0_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_1_u8.val[index]));
+      
+      ra4_c_1_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_1_u8.val[index]));
+      ra4_c_1_l_1_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_1_u8.val[index]));
+
+      // third line
+      ra4_c_0_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_0_l_2_u8.val[index]));
+      
+      ra4_c_1_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_1_l_2_u8.val[index]));
+      ra4_c_1_l_2_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_1_l_2_u8.val[index]));
+
+      // reduction
+      ra4_c_0_l_1_u16_l.val[index] = vaddq_u16(ra4_c_0_l_2_u16_l.val[index],
+                                              vaddq_u16(ra4_c_0_l_1_u16_l.val[index], ra4_c_0_l_0_u16_l.val[index])); // lower part
+      
+      ra4_c_1_l_1_u16_l.val[index] = vaddq_u16(ra4_c_1_l_2_u16_l.val[index],
+                                              vaddq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_1_l_0_u16_l.val[index])); // lower part
+      ra4_c_1_l_1_u16_h.val[index] = vaddq_u16(ra4_c_1_l_2_u16_h.val[index],
+                                              vaddq_u16(ra4_c_1_l_1_u16_h.val[index], ra4_c_1_l_0_u16_h.val[index])); // higher part
+
+      // move the first bit to the last position using vextq_u16
+      ra4_c_0_l_1_u16_h.val[index] = vextq_u16(ra4_c_0_l_1_u16_h.val[index], ra4_c_0_l_1_u16_l.val[index], 1);    
+    }
+    
+
+    // #############################################################
+    //                      END PROLOGUE
+    // #############################################################
+    
+    // loop over x (start from +1, end at -1 => no border)
+    for (int j = x + 1; j < x + width; j+=16) {
+
+      // 3. Memory deinterliving
+      /* 
+       * Use vld4q_u8 instructions to perform a deinterleving of the four pixel components.
+       * For all the three lines of the right column-group, we load from memory 16 pixels 
+       * deinterliving the colors. Now each group of pixel is composed by an array of 4 registers 
+       * 8b x 16 elements.
+       */
+      ra4_c_2_l_0_u8 = vld4q_u8((uint8_t*)&cur_img(i - 1, j + 16)); // [[ r x 16 ] [ g x 16 ] [ b x 16 ] [ a x 16 ]]
+      ra4_c_2_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, j + 16));
+      ra4_c_2_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, j + 16));
+      
+
+      for(int index=0; index<4; index++){
+        // 4. 
+        /*
+         * Promote the 8-bit components into 16-bit components to perform the accumulation
+         * First we extract the lower and higher part of the 8-bit components using the 
+         * vget_low_u8 and vget_high_u8.
+         * Then we promote them to 16-bit components using the vmovl_u8 instruction.
+         *  
+         */
+        // first line
+        ra4_c_2_l_0_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_2_l_0_u8.val[index]));
+        ra4_c_2_l_0_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_2_l_0_u8.val[index]));
+
+        // second line
+        ra4_c_2_l_1_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_2_l_1_u8.val[index]));
+        ra4_c_2_l_1_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_2_l_1_u8.val[index]));
+
+        // third line
+        ra4_c_2_l_2_u16_l.val[index] = vmovl_u8(vget_low_u8(ra4_c_2_l_2_u8.val[index]));
+        ra4_c_2_l_2_u16_h.val[index] = vmovl_u8(vget_high_u8(ra4_c_2_l_2_u8.val[index]));
+
+        // 5. Compute the reduction of the second column
+        /*
+         * Accumulate the color component of the right column-group. The accumulation is performed
+         * using 16 bit registers.
+         */
+        ra4_c_2_l_1_u16_l.val[index] = vaddq_u16(ra4_c_2_l_2_u16_l.val[index],
+                                                vaddq_u16(ra4_c_2_l_1_u16_l.val[index], ra4_c_2_l_0_u16_l.val[index])); // lower part
+        ra4_c_2_l_1_u16_h.val[index] = vaddq_u16(ra4_c_2_l_2_u16_h.val[index],
+                                                vaddq_u16(ra4_c_2_l_1_u16_h.val[index], ra4_c_2_l_0_u16_h.val[index])); // higher part
+
+        // 6. left-right pattern
+        /*
+         * Perform the left-right pattern to compute the sum of the pixel components. 
+         *
+         * [lh8, lh9, lh10, lh11, lh12, lh13, lh14, lh15] -> ra4_c_0_l_1_u16_h
+         * [cl0, cl1, cl2, cl3, cl4, cl5, cl6, cl7] -> ra4_c_1_l_1_u16_l
+         * [ch8, ch9, ch10, ch11, ch12, ch13, ch14, ch15] -> ra4_c_1_l_1_u16_h
+         * [rl0, rl1, rl2, rl3, rl4, rl5, rl6, rl7] -> ra4_c_2_l_1_u16_l
+         * 
+         * From horizontal to vertical computation:
+         * - lower part:
+         * [cl1, cl2, cl3, cl4, cl5, cl6, cl7, ch8] -> right lower
+         * [cl0, cl1, cl2, cl3, cl4, cl5, cl6, cl7] -> central lower
+         * [lh15, cl0, cl1, cl2, cl3, cl4, cl5, cl6] -> left lower
+         * 
+         * - higher part:
+         * [ch9, ch10, ch11, ch12, ch13, ch14, ch15, rl0] -> right higher
+         * [ch8, ch9, ch10, ch11, ch12, ch13, ch14, rl0] -> central higher
+         * [cl7, ch8, ch9, ch10, ch11, ch12, ch13, ch14] -> left higher
+         * 
+         * 
+         */
+        ra4_left_l.val[index]  = vextq_u16(ra4_c_0_l_1_u16_h.val[index], ra4_c_1_l_1_u16_l.val[index], 7);  // [lh15, cl0, cl1, cl2, cl3, cl4, cl5, cl6]
+        ra4_right_l.val[index] = vextq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_1_l_1_u16_h.val[index], 1); // [cl1, cl2, cl3, cl4, cl5, cl6, cl7, ch8]
+
+        ra4_left_h.val[index]  = vextq_u16(ra4_c_1_l_1_u16_l.val[index], ra4_c_1_l_1_u16_h.val[index], 7); //[cl7, ch8, ch9, ch10, ch11, ch12, ch13, ch14]
+        ra4_right_h.val[index] = vextq_u16(ra4_c_1_l_1_u16_h.val[index], ra4_c_2_l_1_u16_l.val[index], 1); // [ch9, ch10, ch11, ch12, ch13, ch14, ch15, rl0]
+
+        // store the previous value before overwrite 
+        ra4_c_1_l_1_u16_h_temp.val[index] = ra4_c_1_l_1_u16_h.val[index];
+
+        // vertical sum
+        ra4_c_1_l_1_u16_l.val[index] = vaddq_u16(vaddq_u16(ra4_left_l.val[index], ra4_c_1_l_1_u16_l.val[index]), ra4_right_l.val[index]); // sum of the lower part
+        ra4_c_1_l_1_u16_h.val[index] = vaddq_u16(vaddq_u16(ra4_left_h.val[index], ra4_c_1_l_1_u16_h.val[index]), ra4_right_h.val[index]); // sum of the higher part
+
+        // 8. divison by 9 using the neon_vdiv9_u16 function
+        ra4_c_1_l_1_u16_l.val[index] = neon_vdiv9_u16(ra4_c_1_l_1_u16_l.val[index]);
+        ra4_c_1_l_1_u16_h.val[index] = neon_vdiv9_u16(ra4_c_1_l_1_u16_h.val[index]);
+
+        // 11. convert back to uint8x16_t
+        ra4_sum_u8.val[index] = vcombine_u8(vqmovn_u16(ra4_c_1_l_1_u16_l.val[index]), vqmovn_u16(ra4_c_1_l_1_u16_h.val[index]));
+      }
+      
+      // 12. store 
+      // use vst4 to store back and interleave the data
+      vst4q_u8((uint8_t*)&next_img(i, j), ra4_sum_u8);
+
+      // 13. variable rotation
+      // copy the lowest part of the middle column into the highest part of the left column ( we should pass the sum of the pixels)
+      // col 0 <- col 1
+      ra4_c_0_l_1_u16_h = ra4_c_1_l_1_u16_h_temp; 
+      // col 1 <- col 2
+      ra4_c_1_l_1_u16_l = ra4_c_2_l_1_u16_l;
+      ra4_c_1_l_1_u16_h = ra4_c_2_l_1_u16_h;
+
+    }
+  }
+
+  // left-right borders size
+  uint32_t bsize = 1;
+  // compute the borders
+  compute_borders(x, y, width, height, bsize);
+
   return 0;
 }
 
 int blur2_do_tile_urrot2_neon_div9_f32 (int x, int y, int width, int height) {
+  /* #########################################################################
+   * #########################################################################
+   * Variables notation: ^r(a[0-4])?_c_[0-3]_l_[0-2]_u[8,16,32,64]
+   * r -> register
+   * a[0-4] -> array of registers and its dimension
+   * c_[0-2] -> column number
+   * l_[0-2] -> line number
+   * u[8,16,32,64] -> type of the registers
+   * 
+   * Example ra4_c_2_l_0_u8 -> array of four registers u_0, right column, first line 
+   * #########################################################################
+   * #########################################################################
+   */
+
+  /*
+   * Contain the interleaved pixel colors of the right group column. 
+   * Four pixels are interleaved in a single register.
+   */
+  uint8x16_t r_c_0_l_0_u8, r_c_0_l_1_u8, r_c_0_l_2_u8;
+  uint8x16_t r_c_1_l_0_u8, r_c_1_l_1_u8, r_c_1_l_2_u8;
+  uint8x16_t r_c_2_l_0_u8, r_c_2_l_1_u8, r_c_2_l_2_u8;
+  uint8x16_t r_sum_u8;
+
+  /**
+   * Two array, one for the lower and one for higher part, for each
+   * line and for each column.
+   */  
+  uint16x8_t r_c_0_l_0_u16_l; // left column, first line, no need for higher part
+  uint16x8_t r_c_0_l_1_u16_h, r_c_0_l_1_u16_l; // left column, second line
+  uint16x8_t r_c_0_l_2_u16_l; // left column, third line, no need for higher part
+  
+  uint16x8_t r_c_1_l_0_u16_h, r_c_1_l_0_u16_l; // central column, first line
+  uint16x8_t r_c_1_l_1_u16_h, r_c_1_l_1_u16_l; // central column, second line
+  uint16x8_t r_c_1_l_2_u16_h, r_c_1_l_2_u16_l; // central column, third line
+  
+  uint16x8_t r_c_2_l_0_u16_h, r_c_2_l_0_u16_l; // right column, first line
+  uint16x8_t r_c_2_l_1_u16_h, r_c_2_l_1_u16_l; // right column, second line
+  uint16x8_t r_c_2_l_2_u16_h, r_c_2_l_2_u16_l; // right column, third line
+
+  // for storing the sum of the pixels on the higher part of the central column
+  // used in variable reduction
+  uint16x8_t r_c_1_l_1_u16_h_temp;
+
+  // To store shiffted values for the reduction
+  uint16x8_t r_left_l, r_left_h;
+  uint16x8_t r_right_l, r_right_h; 
+
+  // for the promotion to 32 bits
+  uint32x4_t r_sum_l_l, r_sum_l_h, r_sum_h_l, r_sum_h_h;
+
+  // for the division by 9
+  float32x4_t r_sumf_l_l, r_sumf_l_h, r_sumf_h_l, r_sumf_h_h;
+  float32_t p = 9;
+  float32x4_t R_NINE = vld1q_dup_f32(&p); // broadcast the 
+
+  // loop over y (start from +1, end at -1 => no border)
   for (int i = y + 1; i < y + height - 1; i++) {
-        
-        uint16x8_t c_0_l, c_0_h, c_1_l, c_1_h, c_2_l, c_2_h;
-        uint16x8_t left_l, left_h, right_l, right_h;
-        uint16x8_t sum_l, sum_h;
-        uint32x4_t sum_l_l, sum_l_h, sum_h_l, sum_h_h;
-        float32x4_t sumf_l_l, sumf_l_h, sumf_h_l, sumf_h_h;
+   // #############################################################
+    //                      PROLOGUE
+    // #############################################################
+    /*
+     * In order to start the variable rotation, we need to precompute
+     * the left and central columns. The computation of the central column
+     * is done in the same way as the right column in the main loop. 
+     * Since the x-loop starts from the second pixel, the left column 
+     * is composed by only the first pixel of each line. So, one 
+     * possible strategy is to load to perform the exact same computation
+     * as the central column, but starting from the first pixel. After that,
+     * we can use vextq_u16 to shift the first pixel to the last position.
+     * 
+     * In this way, we can use simd instructions to perform the computation
+     * also for the first 4 pixels of each line instead of using scalar
+     * instructions.
+     */ 
+    {
+      r_c_0_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x));
+      r_c_0_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x));
+      r_c_0_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x));
+      
+      r_c_1_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x + 1));
+      r_c_1_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x + 1));
+      r_c_1_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x + 1));
 
-        // loop over x (start from +1, end at -1 => no border)
-        for (int j = x + 1; j < x + width - 1; j += 16) {
-            // Use the vld1q_u8 instructions
-            uint8x16x4_t r_c_2_l_0_4 = vld4q_u8((const uint8_t*)&cur_img(i - 1, j));
-            uint8x16x4_t r_c_2_l_1_4 = vld4q_u8((const uint8_t*)&cur_img(i + 0, j));
-            uint8x16x4_t r_c_2_l_2_4 = vld4q_u8((const uint8_t*)&cur_img(i + 1, j));
+      /*
+      * please note that we need only the lower part of the 16 bits for the 
+      * left column. The higher part is not used in the computation but only
+      * to store the first pixel for the computation in the loop.
+      */
+      // first line
+      r_c_0_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_0_u8));
+      
+      r_c_1_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_0_u8));
+      r_c_1_l_0_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_0_u8));
 
-            //Promote the 8-bit components into 16-bit components
-            c_2_l = vaddq_u16(vmovl_u8(vget_low_u8(r_c_2_l_0_4.val[0])),
-                              vaddq_u16(vmovl_u8(vget_low_u8(r_c_2_l_1_4.val[0])),
-                                        vmovl_u8(vget_low_u8(r_c_2_l_2_4.val[0]))));
-            c_2_h = vaddq_u16(vmovl_u8(vget_high_u8(r_c_2_l_0_4.val[0])),
-                              vaddq_u16(vmovl_u8(vget_high_u8(r_c_2_l_1_4.val[0])),
-                                        vmovl_u8(vget_high_u8(r_c_2_l_2_4.val[0]))));
+      // second line
+      r_c_0_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_1_u8));
+      
+      r_c_1_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_1_u8));
+      r_c_1_l_1_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_1_u8));
 
-            // 3. left-right
-            left_l = vextq_u16(c_0_l, c_1_l, 7);
-            right_l = vextq_u16(c_1_l, c_2_l, 1);
-            left_h = vextq_u16(c_0_h, c_1_h, 7);
-            right_h = vextq_u16(c_1_h, c_2_h, 1);
+      // third line
+      r_c_0_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_2_u8));
+      
+      r_c_1_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_2_u8));
+      r_c_1_l_2_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_2_u8));
 
-            sum_l = vaddq_u16(vaddq_u16(left_l, c_1_l), right_l);
-            sum_h = vaddq_u16(vaddq_u16(left_h, c_1_h), right_h);
+      // reduction
+      r_c_0_l_1_u16_l = vaddq_u16(r_c_0_l_2_u16_l,
+                                    vaddq_u16(r_c_0_l_1_u16_l, r_c_0_l_0_u16_l)); // lower part
+      
+      r_c_1_l_1_u16_l = vaddq_u16(r_c_1_l_2_u16_l,
+                                    vaddq_u16(r_c_1_l_1_u16_l, r_c_1_l_0_u16_l)); // lower part
+      r_c_1_l_1_u16_h = vaddq_u16(r_c_1_l_2_u16_h,
+                                    vaddq_u16(r_c_1_l_1_u16_h, r_c_1_l_0_u16_h)); // higher part
 
-            // 4. promote the results to uint32x4_t registers.
-            sum_l_l = vmovl_u16(vget_low_u16(sum_l));
-            sum_l_h = vmovl_u16(vget_high_u16(sum_l));
-            sum_h_l = vmovl_u16(vget_low_u16(sum_h));
-            sum_h_h = vmovl_u16(vget_high_u16(sum_h));
-
-            sumf_l_l = vcvtq_f32_u32(sum_l_l);
-            sumf_l_h = vcvtq_f32_u32(sum_l_h);
-            sumf_h_l = vcvtq_f32_u32(sum_h_l);
-            sumf_h_h = vcvtq_f32_u32(sum_h_h);
-
-            // 5. Perform the division by 9 on 32-bit floating-point
-            float32x4_t r_nine = vdupq_n_f32(9.0f);
-            sumf_l_l = vdivq_f32(sumf_l_l, r_nine);
-            sumf_l_h = vdivq_f32(sumf_l_h, r_nine);
-            sumf_h_l = vdivq_f32(sumf_h_l, r_nine);
-            sumf_h_h = vdivq_f32(sumf_h_h, r_nine);
-
-            // 6. Convert back the float32x4_t resulting registers into uint32x4_t registers.
-            sum_l_l = vcvtq_u32_f32(sumf_l_l);
-            sum_l_h = vcvtq_u32_f32(sumf_l_h);
-            sum_h_l = vcvtq_u32_f32(sumf_h_l);
-            sum_h_h = vcvtq_u32_f32(sumf_h_h);
-
-            // 7. Convert back the uint32x4_t registers into uint16x8_t registers.
-            sum_l = vcombine_u16(vqmovn_u32(sum_l_l), vqmovn_u32(sum_l_h));
-            sum_h = vcombine_u16(vqmovn_u32(sum_h_l), vqmovn_u32(sum_h_h));
-
-            // 8. Convert back the uint16x8_t registers into uint8x16_t registers
-            uint8x16_t result = vcombine_u8(vqmovn_u16(sum_l), vqmovn_u16(sum_h));
-
-            // 9. store
-            vst4q_u8((uint8_t*)&next_img(i, j), result);
-
-            // 10
-            c_0_l = c_1_l; c_0_h = c_1_h;
-            c_1_l = c_2_l; c_1_h = c_2_h;
-        }
+      // move the first bit to the last position using vextq_u16
+      r_c_0_l_1_u16_h = vextq_u16(r_c_0_l_1_u16_h, r_c_0_l_1_u16_l, 4);    
     }
+    // #############################################################
+    //                      END PROLOGUE
+    // #############################################################
 
-    uint32_t bsize = 1;
-    compute_borders(x, y, width, height, bsize);
+    // loop over x (start from +1, end at -1 => no border)
+    for (int j = x + 1; j < x + width; j+=4) {
 
-    return 0;
+      // 3. Memory deinterliving
+      /* 
+       * Use vld1q_u8 instructions to perform an interleved load of the four pixel components.
+       * For all the three lines of the right column-group, we load from memory 4 pixels,
+       * leaving interleaved the colors. Now each register is composed by 4 pixels.
+       */
+      r_c_2_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, j + 4)); // [[ r1 g1 b1 a1 ] [r2 g2 b2 a2] [r3 g3 b3 a3] [ r4 g4 b4 a4 ]]
+      r_c_2_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, j + 4));
+      r_c_2_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, j + 4));
+      
+      // 4. 
+      /*
+       * Promote the 8-bit components into 16-bit components to perform the accumulation
+       * First we extract the lower and higher part of the 8-bit components using the 
+       * vget_low_u8 and vget_high_u8.
+       * Then we promote them to 16-bit components using the vmovl_u8 instruction.
+       *  
+       */
+      // first line
+      r_c_2_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_0_u8));
+      r_c_2_l_0_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_0_u8));
+
+      // second line
+      r_c_2_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_1_u8));
+      r_c_2_l_1_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_1_u8));
+
+      // third line
+      r_c_2_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_2_u8));
+      r_c_2_l_2_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_2_u8));
+
+      // 5. Compute the reduction of the second column
+      /*
+       * Accumulate the color component of the right column-group.
+       */
+      r_c_2_l_1_u16_l = vaddq_u16(r_c_2_l_2_u16_l,
+                                              vaddq_u16(r_c_2_l_1_u16_l, r_c_2_l_0_u16_l)); // lower part
+      r_c_2_l_1_u16_h = vaddq_u16(r_c_2_l_2_u16_h,
+                                              vaddq_u16(r_c_2_l_1_u16_h, r_c_2_l_0_u16_h)); // higher part
+
+      // 6. left-right pattern
+      /*
+        * Perform the left-right pattern to compute the sum of the pixel components. 
+        * Now, since colors are interleaved, we need to shift 4 colors when preparing the
+        * left and right part of the sum. 
+        */
+      r_left_l  = vextq_u16(r_c_0_l_1_u16_h, r_c_1_l_1_u16_l, 4);  // [lh15, cl0, cl1, cl2, cl3, cl4, cl5, cl6]
+      r_right_l = vextq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_h, 4); // [cl1, cl2, cl3, cl4, cl5, cl6, cl7, ch8]
+
+      r_left_h  = vextq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_h, 4); //[cl7, ch8, ch9, ch10, ch11, ch12, ch13, ch14]
+      r_right_h = vextq_u16(r_c_1_l_1_u16_h, r_c_2_l_1_u16_l, 4); // [ch9, ch10, ch11, ch12, ch13, ch14, ch15, rl0]
+
+      // store the previous value before overwrite 
+      r_c_1_l_1_u16_h_temp = r_c_1_l_1_u16_h;
+
+      // vertical sum
+      r_c_1_l_1_u16_l = vaddq_u16(vaddq_u16(r_left_l, r_c_1_l_1_u16_l), r_right_l); // sum of the lower part
+      r_c_1_l_1_u16_h = vaddq_u16(vaddq_u16(r_left_h, r_c_1_l_1_u16_h), r_right_h); // sum of the higher part
+
+      // 7. promotion to uint32x4_t
+      r_sum_l_l = vmovl_u16(vget_low_u16(r_c_1_l_1_u16_l));
+      r_sum_l_h = vmovl_u16(vget_high_u16(r_c_1_l_1_u16_l));
+      r_sum_h_l = vmovl_u16(vget_low_u16(r_c_1_l_1_u16_h));
+      r_sum_h_h = vmovl_u16(vget_high_u16(r_c_1_l_1_u16_h));
+    
+      // 7. convert to float32x4_t
+      r_sumf_l_l = vcvtq_n_f32_u32(r_sum_l_l, 10);
+      r_sumf_l_h = vcvtq_n_f32_u32(r_sum_l_h, 10);
+      r_sumf_h_l = vcvtq_n_f32_u32(r_sum_h_l, 10);
+      r_sumf_h_h = vcvtq_n_f32_u32(r_sum_h_h, 10);
+      
+      // 8. divison by 9
+      r_sumf_l_l = vdivq_f32(r_sumf_l_l, R_NINE);
+      r_sumf_l_h = vdivq_f32(r_sumf_l_h, R_NINE);
+      r_sumf_h_l = vdivq_f32(r_sumf_h_l, R_NINE);
+      r_sumf_h_h = vdivq_f32(r_sumf_h_h, R_NINE);
+
+      // 9. convert back to uint32x4_t
+      r_sum_l_l = vcvtq_n_u32_f32(r_sumf_l_l, 10);
+      r_sum_l_h = vcvtq_n_u32_f32(r_sumf_l_h, 10);
+      r_sum_h_l = vcvtq_n_u32_f32(r_sumf_h_l, 10);
+      r_sum_h_h = vcvtq_n_u32_f32(r_sumf_h_h, 10);
+
+      // 10. convert back to uint16x8_t 
+      r_c_1_l_1_u16_l = vcombine_u16(vqmovn_u32(r_sum_l_l), vqmovn_u32(r_sum_l_h));
+      r_c_1_l_1_u16_h = vcombine_u16(vqmovn_u32(r_sum_h_l), vqmovn_u32(r_sum_h_h));
+
+      // 11. convert back to uint8x16_t
+      r_sum_u8 = vcombine_u8(vqmovn_u16(r_c_1_l_1_u16_l), vqmovn_u16(r_c_1_l_1_u16_h));
+
+      // 12. store 
+      // use vst1 to store back the data
+      vst1q_u8((uint8_t*)&next_img(i, j), r_sum_u8);
+
+      // 13. variable rotation
+      // copy the lowest part of the middle column into the highest part of the left column ( we should pass the sum of the pixels)
+      // col 0 <- col 1
+      r_c_0_l_1_u16_h = r_c_1_l_1_u16_h_temp; 
+      // col 1 <- col 2
+      r_c_1_l_1_u16_l = r_c_2_l_1_u16_l;
+      r_c_1_l_1_u16_h = r_c_2_l_1_u16_h;
+
+    }
+  }
+
+  // left-right borders size
+  uint32_t bsize = 1;
+  // compute the borders
+  compute_borders(x, y, width, height, bsize);
+
+  return 0;
 }
 
-
 int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
-  // TODO
+  /* #########################################################################
+   * #########################################################################
+   * Variables notation: ^r(a[0-4])?_c_[0-3]_l_[0-2]_u[8,16,32,64]
+   * r -> register
+   * a[0-4] -> array of registers and its dimension
+   * c_[0-2] -> column number
+   * l_[0-2] -> line number
+   * u[8,16,32,64] -> type of the registers
+   * 
+   * Example ra4_c_2_l_0_u8 -> array of four registers u_0, right column, first line 
+   * #########################################################################
+   * #########################################################################
+   */
+
+  /*
+   * Contain the interleaved pixel colors of the right group column. 
+   * Four pixels are interleaved in a single register.
+   */
+  uint8x16_t r_c_0_l_0_u8, r_c_0_l_1_u8, r_c_0_l_2_u8;
+  uint8x16_t r_c_1_l_0_u8, r_c_1_l_1_u8, r_c_1_l_2_u8;
+  uint8x16_t r_c_2_l_0_u8, r_c_2_l_1_u8, r_c_2_l_2_u8;
+  uint8x16_t r_sum_u8;
+
+  /**
+   * Two array, one for the lower and one for higher part, for each
+   * line and for each column.
+   */  
+  uint16x8_t r_c_0_l_0_u16_l; // left column, first line, no need for higher part
+  uint16x8_t r_c_0_l_1_u16_h, r_c_0_l_1_u16_l; // left column, second line
+  uint16x8_t r_c_0_l_2_u16_l; // left column, third line, no need for higher part
+  
+  uint16x8_t r_c_1_l_0_u16_h, r_c_1_l_0_u16_l; // central column, first line
+  uint16x8_t r_c_1_l_1_u16_h, r_c_1_l_1_u16_l; // central column, second line
+  uint16x8_t r_c_1_l_2_u16_h, r_c_1_l_2_u16_l; // central column, third line
+  
+  uint16x8_t r_c_2_l_0_u16_h, r_c_2_l_0_u16_l; // right column, first line
+  uint16x8_t r_c_2_l_1_u16_h, r_c_2_l_1_u16_l; // right column, second line
+  uint16x8_t r_c_2_l_2_u16_h, r_c_2_l_2_u16_l; // right column, third line
+
+  // for storing the sum of the pixels on the higher part of the central column
+  // used in variable reduction
+  uint16x8_t r_c_1_l_1_u16_h_temp;
+
+  // To store shiffted values for the reduction
+  uint16x8_t r_left_l, r_left_h;
+  uint16x8_t r_right_l, r_right_h; 
+
+  // loop over y (start from +1, end at -1 => no border)
+  for (int i = y + 1; i < y + height - 1; i++) {
+   // #############################################################
+    //                      PROLOGUE
+    // #############################################################
+    /*
+     * In order to start the variable rotation, we need to precompute
+     * the left and central columns. The computation of the central column
+     * is done in the same way as the right column in the main loop. 
+     * Since the x-loop starts from the second pixel, the left column 
+     * is composed by only the first pixel of each line. So, one 
+     * possible strategy is to load to perform the exact same computation
+     * as the central column, but starting from the first pixel. After that,
+     * we can use vextq_u16 to shift the first pixel to the last position.
+     * 
+     * In this way, we can use simd instructions to perform the computation
+     * also for the first 4 pixels of each line instead of using scalar
+     * instructions.
+     */ 
+    {
+      r_c_0_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x));
+      r_c_0_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x));
+      r_c_0_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x));
+      
+      r_c_1_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x + 1));
+      r_c_1_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x + 1));
+      r_c_1_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x + 1));
+
+      /*
+      * please note that we need only the lower part of the 16 bits for the 
+      * left column. The higher part is not used in the computation but only
+      * to store the first pixel for the computation in the loop.
+      */
+      // first line
+      r_c_0_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_0_u8));
+      
+      r_c_1_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_0_u8));
+      r_c_1_l_0_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_0_u8));
+
+      // second line
+      r_c_0_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_1_u8));
+      
+      r_c_1_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_1_u8));
+      r_c_1_l_1_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_1_u8));
+
+      // third line
+      r_c_0_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_2_u8));
+      
+      r_c_1_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_2_u8));
+      r_c_1_l_2_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_2_u8));
+
+      // reduction
+      r_c_0_l_1_u16_l = vaddq_u16(r_c_0_l_2_u16_l,
+                                    vaddq_u16(r_c_0_l_1_u16_l, r_c_0_l_0_u16_l)); // lower part
+      
+      r_c_1_l_1_u16_l = vaddq_u16(r_c_1_l_2_u16_l,
+                                    vaddq_u16(r_c_1_l_1_u16_l, r_c_1_l_0_u16_l)); // lower part
+      r_c_1_l_1_u16_h = vaddq_u16(r_c_1_l_2_u16_h,
+                                    vaddq_u16(r_c_1_l_1_u16_h, r_c_1_l_0_u16_h)); // higher part
+
+      // move the first bit to the last position using vextq_u16
+      r_c_0_l_1_u16_h = vextq_u16(r_c_0_l_1_u16_h, r_c_0_l_1_u16_l, 4);    
+    }
+    // #############################################################
+    //                      END PROLOGUE
+    // #############################################################
+
+    // loop over x (start from +1, end at -1 => no border)
+    for (int j = x + 1; j < x + width; j+=4) {
+
+      // 3. Memory deinterliving
+      /* 
+       * Use vld1q_u8 instructions to perform an interleved load of the four pixel components.
+       * For all the three lines of the right column-group, we load from memory 4 pixels,
+       * leaving interleaved the colors. Now each register is composed by 4 pixels.
+       */
+      r_c_2_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, j + 4)); // [[ r1 g1 b1 a1 ] [r2 g2 b2 a2] [r3 g3 b3 a3] [ r4 g4 b4 a4 ]]
+      r_c_2_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, j + 4));
+      r_c_2_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, j + 4));
+      
+      // 4. 
+      /*
+       * Promote the 8-bit components into 16-bit components to perform the accumulation
+       * First we extract the lower and higher part of the 8-bit components using the 
+       * vget_low_u8 and vget_high_u8.
+       * Then we promote them to 16-bit components using the vmovl_u8 instruction.
+       *  
+       */
+      // first line
+      r_c_2_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_0_u8));
+      r_c_2_l_0_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_0_u8));
+
+      // second line
+      r_c_2_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_1_u8));
+      r_c_2_l_1_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_1_u8));
+
+      // third line
+      r_c_2_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_2_u8));
+      r_c_2_l_2_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_2_u8));
+
+      // 5. Compute the reduction of the second column
+      /*
+       * Accumulate the color component of the right column-group.
+       */
+      r_c_2_l_1_u16_l = vaddq_u16(r_c_2_l_2_u16_l,
+                                              vaddq_u16(r_c_2_l_1_u16_l, r_c_2_l_0_u16_l)); // lower part
+      r_c_2_l_1_u16_h = vaddq_u16(r_c_2_l_2_u16_h,
+                                              vaddq_u16(r_c_2_l_1_u16_h, r_c_2_l_0_u16_h)); // higher part
+
+      // 6. left-right pattern
+      /*
+        * Perform the left-right pattern to compute the sum of the pixel components. 
+        * Now, since colors are interleaved, we need to shift 4 colors when preparing the
+        * left and right part of the sum. 
+        */
+      r_left_l  = vextq_u16(r_c_0_l_1_u16_h, r_c_1_l_1_u16_l, 4);  // [lh15, cl0, cl1, cl2, cl3, cl4, cl5, cl6]
+      r_right_l = vextq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_h, 4); // [cl1, cl2, cl3, cl4, cl5, cl6, cl7, ch8]
+
+      r_left_h  = vextq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_h, 4); //[cl7, ch8, ch9, ch10, ch11, ch12, ch13, ch14]
+      r_right_h = vextq_u16(r_c_1_l_1_u16_h, r_c_2_l_1_u16_l, 4); // [ch9, ch10, ch11, ch12, ch13, ch14, ch15, rl0]
+
+      // store the previous value before overwrite 
+      r_c_1_l_1_u16_h_temp = r_c_1_l_1_u16_h;
+
+      // vertical sum
+      r_c_1_l_1_u16_l = vaddq_u16(vaddq_u16(r_left_l, r_c_1_l_1_u16_l), r_right_l); // sum of the lower part
+      r_c_1_l_1_u16_h = vaddq_u16(vaddq_u16(r_left_h, r_c_1_l_1_u16_h), r_right_h); // sum of the higher part
+
+      // division by 9 using the neon_vdiv9_u16 function
+      r_c_1_l_1_u16_l = neon_vdiv9_u16(r_c_1_l_1_u16_l);
+      r_c_1_l_1_u16_h = neon_vdiv9_u16(r_c_1_l_1_u16_h);
+
+      // 11. convert back to uint8x16_t
+      r_sum_u8 = vcombine_u8(vqmovn_u16(r_c_1_l_1_u16_l), vqmovn_u16(r_c_1_l_1_u16_h));
+
+      // 12. store 
+      // use vst1 to store back the data
+      vst1q_u8((uint8_t*)&next_img(i, j), r_sum_u8);
+
+      // 13. variable rotation
+      // copy the lowest part of the middle column into the highest part of the left column ( we should pass the sum of the pixels)
+      // col 0 <- col 1
+      r_c_0_l_1_u16_h = r_c_1_l_1_u16_h_temp; 
+      // col 1 <- col 2
+      r_c_1_l_1_u16_l = r_c_2_l_1_u16_l;
+      r_c_1_l_1_u16_h = r_c_2_l_1_u16_h;
+
+    }
+  }
+
+  // left-right borders size
+  uint32_t bsize = 1;
+  // compute the borders
+  compute_borders(x, y, width, height, bsize);
+
   return 0;
 }
 
 int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
-  // TODO
+  /* #########################################################################
+   * #########################################################################
+   * Variables notation: ^r(a[0-4])?_c_[0-3]_l_[0-2]_u[8,16,32,64]
+   * r -> register
+   * a[0-4] -> array of registers and its dimension
+   * c_[0-2] -> column number
+   * l_[0-2] -> line number
+   * u[8,16,32,64] -> type of the registers
+   * 
+   * Example ra4_c_2_l_0_u8 -> array of four registers u_0, right column, first line 
+   * #########################################################################
+   * #########################################################################
+   */
+
+  /*
+   * Contain the interleaved pixel colors of the right group column. 
+   * Four pixels are interleaved in a single register.
+   */
+  uint8x16_t r_c_0_l_0_u8, r_c_0_l_1_u8, r_c_0_l_2_u8;
+  uint8x16_t r_c_1_l_0_u8, r_c_1_l_1_u8, r_c_1_l_2_u8;
+  uint8x16_t r_c_2_l_0_u8, r_c_2_l_1_u8, r_c_2_l_2_u8;
+  uint8x16_t r_sum_u8;
+
+  /**
+   * Two array, one for the lower and one for higher part, for each
+   * line and for each column.
+   */  
+  uint16x8_t r_c_0_l_0_u16_l; // left column, first line, no need for higher part
+  uint16x8_t r_c_0_l_1_u16_h, r_c_0_l_1_u16_l; // left column, second line
+  uint16x8_t r_c_0_l_2_u16_l; // left column, third line, no need for higher part
+  
+  uint16x8_t r_c_1_l_0_u16_h, r_c_1_l_0_u16_l; // central column, first line
+  uint16x8_t r_c_1_l_1_u16_h, r_c_1_l_1_u16_l; // central column, second line
+  uint16x8_t r_c_1_l_2_u16_h, r_c_1_l_2_u16_l; // central column, third line
+  
+  uint16x8_t r_c_2_l_0_u16_h, r_c_2_l_0_u16_l; // right column, first line
+  uint16x8_t r_c_2_l_1_u16_h, r_c_2_l_1_u16_l; // right column, second line
+  uint16x8_t r_c_2_l_2_u16_h, r_c_2_l_2_u16_l; // right column, third line
+
+  // for storing the sum of the pixels on the higher part of the central column
+  // used in variable reduction
+  uint16x8_t r_c_1_l_1_u16_h_temp;
+
+  // To store shiffted values for the reduction
+  uint16x8_t r_left_l, r_left_h;
+  uint16x8_t r_right_l, r_right_h; 
+
+  // store the central column in the first iteration
+  uint16x8_t r_c_1_l_1_u16_l_central, r_c_1_l_1_u16_h_central;
+  uint16x8_t r_c_2_l_1_u16_l_central, r_c_2_l_1_u16_h_central;
+
+  // loop over y (start from +1, end at -1 => no border)
+  for (int i = y + 1; i < y + height - 1; i++) {
+   // #############################################################
+    //                      PROLOGUE
+    // #############################################################
+    /*
+     * In order to start the variable rotation, we need to precompute
+     * the left and central columns. The computation of the central column
+     * is done in the same way as the right column in the main loop. 
+     * Since the x-loop starts from the second pixel, the left column 
+     * is composed by only the first pixel of each line. So, one 
+     * possible strategy is to load to perform the exact same computation
+     * as the central column, but starting from the first pixel. After that,
+     * we can use vextq_u16 to shift the first pixel to the last position.
+     * 
+     * In this way, we can use simd instructions to perform the computation
+     * also for the first 4 pixels of each line instead of using scalar
+     * instructions.
+     */ 
+    {
+      r_c_0_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x));
+      r_c_0_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x));
+      r_c_0_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x));
+      
+      r_c_1_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x + 1));
+      r_c_1_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x + 1));
+      r_c_1_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x + 1));
+
+      /*
+      * please note that we need only the lower part of the 16 bits for the 
+      * left column. The higher part is not used in the computation but only
+      * to store the first pixel for the computation in the loop.
+      */
+      // first line
+      r_c_0_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_0_u8));
+      
+      r_c_1_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_0_u8));
+      r_c_1_l_0_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_0_u8));
+
+      // second line
+      r_c_0_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_1_u8));
+      
+      r_c_1_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_1_u8));
+      r_c_1_l_1_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_1_u8));
+
+      // NOTE: in the first we need to store the central pixels 
+      // otherwise the variable rotation will not work.
+      r_c_1_l_1_u16_l_central = r_c_1_l_1_u16_l;
+      r_c_1_l_1_u16_h_central = r_c_1_l_1_u16_h;
+
+      // third line
+      r_c_0_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_0_l_2_u8));
+      
+      r_c_1_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_1_l_2_u8));
+      r_c_1_l_2_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_2_u8));
+
+      // reduction
+      r_c_0_l_1_u16_l = vaddq_u16(r_c_0_l_2_u16_l,
+                                    vaddq_u16(r_c_0_l_1_u16_l, r_c_0_l_0_u16_l)); // lower part
+      
+      r_c_1_l_1_u16_l = vaddq_u16(r_c_1_l_2_u16_l,
+                                    vaddq_u16(r_c_1_l_1_u16_l, r_c_1_l_0_u16_l)); // lower part
+      r_c_1_l_1_u16_h = vaddq_u16(r_c_1_l_2_u16_h,
+                                    vaddq_u16(r_c_1_l_1_u16_h, r_c_1_l_0_u16_h)); // higher part
+
+
+      // move the first bit to the last position using vextq_u16
+      r_c_0_l_1_u16_h = vextq_u16(r_c_0_l_1_u16_h, r_c_0_l_1_u16_l, 4);    
+    }
+    // #############################################################
+    //                      END PROLOGUE
+    // #############################################################
+
+    // loop over x (start from +1, end at -1 => no border)
+    for (int j = x + 1; j < x + width; j+=4) {
+
+      // 3. Memory deinterliving
+      /* 
+       * Use vld1q_u8 instructions to perform an interleved load of the four pixel components.
+       * For all the three lines of the right column-group, we load from memory 4 pixels,
+       * leaving interleaved the colors. Now each register is composed by 4 pixels.
+       */
+      r_c_2_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, j + 4)); // [[ r1 g1 b1 a1 ] [r2 g2 b2 a2] [r3 g3 b3 a3] [ r4 g4 b4 a4 ]]
+      r_c_2_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, j + 4));
+      r_c_2_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, j + 4));
+      
+      // 4. 
+      /*
+       * Promote the 8-bit components into 16-bit components to perform the accumulation
+       * First we extract the lower and higher part of the 8-bit components using the 
+       * vget_low_u8 and vget_high_u8.
+       * Then we promote them to 16-bit components using the vmovl_u8 instruction.
+       *  
+       */
+      // first line
+      r_c_2_l_0_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_0_u8));
+      r_c_2_l_0_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_0_u8));
+
+      // second line
+      r_c_2_l_1_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_1_u8));
+      r_c_2_l_1_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_1_u8));
+
+      // third line
+      r_c_2_l_2_u16_l = vmovl_u8(vget_low_u8(r_c_2_l_2_u8));
+      r_c_2_l_2_u16_h = vmovl_u8(vget_high_u8(r_c_2_l_2_u8));
+
+      // save the central line before overwriting
+      r_c_2_l_1_u16_l_central = r_c_2_l_1_u16_l;
+      r_c_2_l_1_u16_h_central = r_c_2_l_1_u16_h;
+
+      // 5. Compute the reduction of the second column
+      /*
+       * Accumulate the color component of the right column-group.
+       */
+      r_c_2_l_1_u16_l = vaddq_u16(r_c_2_l_2_u16_l,
+                                              vaddq_u16(r_c_2_l_1_u16_l, r_c_2_l_0_u16_l)); // lower part
+      r_c_2_l_1_u16_h = vaddq_u16(r_c_2_l_2_u16_h,
+                                              vaddq_u16(r_c_2_l_1_u16_h, r_c_2_l_0_u16_h)); // higher part
+
+      // 6. left-right pattern
+      /*
+        * Perform the left-right pattern to compute the sum of the pixel components. 
+        * Now, since colors are interleaved, we need to shift 4 colors when preparing the
+        * left and right part of the sum. 
+        */
+      r_left_l  = vextq_u16(r_c_0_l_1_u16_h, r_c_1_l_1_u16_l, 4);  // [lh15, cl0, cl1, cl2, cl3, cl4, cl5, cl6]
+      r_right_l = vextq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_h, 4); // [cl1, cl2, cl3, cl4, cl5, cl6, cl7, ch8]
+
+      r_left_h  = vextq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_h, 4); //[cl7, ch8, ch9, ch10, ch11, ch12, ch13, ch14]
+      r_right_h = vextq_u16(r_c_1_l_1_u16_h, r_c_2_l_1_u16_l, 4); // [ch9, ch10, ch11, ch12, ch13, ch14, ch15, rl0]
+
+      // store the previous value before overwrite 
+      r_c_1_l_1_u16_h_temp = r_c_1_l_1_u16_h;
+
+      // vertical sum
+      r_c_1_l_1_u16_l = vaddq_u16(vaddq_u16(r_left_l, r_c_1_l_1_u16_l), r_right_l); // sum of the lower part
+      r_c_1_l_1_u16_h = vaddq_u16(vaddq_u16(r_left_h, r_c_1_l_1_u16_h), r_right_h); // sum of the higher part
+
+      // remove the central line
+      r_c_1_l_1_u16_l = vsubq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_l_central);
+      r_c_1_l_1_u16_h = vsubq_u16(r_c_1_l_1_u16_h, r_c_1_l_1_u16_h_central);
+
+      // division by 8 using just a vectorized shift operation
+      r_c_1_l_1_u16_l = r_c_1_l_1_u16_l >> 3;
+      r_c_1_l_1_u16_h = r_c_1_l_1_u16_h >> 3;
+
+      // 11. convert back to uint8x16_t
+      r_sum_u8 = vcombine_u8(vqmovn_u16(r_c_1_l_1_u16_l), vqmovn_u16(r_c_1_l_1_u16_h));
+
+      // 12. store 
+      // use vst1 to store back the data
+      vst1q_u8((uint8_t*)&next_img(i, j), r_sum_u8);
+
+      // 13. variable rotation
+      // copy the lowest part of the middle column into the highest part of the left column ( we should pass the sum of the pixels)
+      // col 0 <- col 1
+      r_c_0_l_1_u16_h = r_c_1_l_1_u16_h_temp; 
+
+      // pass the central column
+      r_c_1_l_1_u16_l_central = r_c_2_l_1_u16_l_central;
+      r_c_1_l_1_u16_h_central = r_c_2_l_1_u16_h_central;
+
+      // col 1 <- col 2
+      r_c_1_l_1_u16_l = r_c_2_l_1_u16_l;
+      r_c_1_l_1_u16_h = r_c_2_l_1_u16_h;
+
+    }
+  }
+
+  // left-right borders size
+  uint32_t bsize = 1;
+  // compute the borders
+  compute_borders(x, y, width, height, bsize);
+
   return 0;
 }
+
+
 
 #endif /* __ARM_NEON__ */
