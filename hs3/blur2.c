@@ -401,7 +401,6 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
   uint16x8x4_t ra4_c_0_l_1_u16_h, ra4_c_0_l_1_u16_l; // left column, second line
   uint16x8x4_t ra4_c_0_l_2_u16_l; // left column, third line, no need for higher part
   
-  
   uint16x8x4_t ra4_c_1_l_0_u16_h, ra4_c_1_l_0_u16_l; // central column, first line
   uint16x8x4_t ra4_c_1_l_1_u16_h, ra4_c_1_l_1_u16_l; // central column, second line
   uint16x8x4_t ra4_c_1_l_2_u16_h, ra4_c_1_l_2_u16_l; // central column, third line
@@ -1508,8 +1507,8 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
       r_c_1_l_1_u16_h = vsubq_u16(r_c_1_l_1_u16_h, r_c_1_l_1_u16_h_central);
 
       // division by 8 using just a vectorized shift operation
-      r_c_1_l_1_u16_l = r_c_1_l_1_u16_l >> 3;
-      r_c_1_l_1_u16_h = r_c_1_l_1_u16_h >> 3;
+      r_c_1_l_1_u16_l = vshrq_n_u16(r_c_1_l_1_u16_l, 3);
+      r_c_1_l_1_u16_h = vshrq_n_u16(r_c_1_l_1_u16_h, 3);
 
       // 11. convert back to uint8x16_t
       r_sum_u8 = vcombine_u8(vqmovn_u16(r_c_1_l_1_u16_l), vqmovn_u16(r_c_1_l_1_u16_h));
@@ -1541,7 +1540,5 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
 
   return 0;
 }
-
-
 
 #endif /* __ARM_NEON__ */
