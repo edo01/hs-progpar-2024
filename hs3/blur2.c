@@ -2,8 +2,6 @@
 
 #include <omp.h>
 
-#define __ARM_NEON__
-
 ///////////////////////////// Sequential version (tiled)
 // Suggested cmdline(s):
 // ./run -l images/1024.png -k blur2 -v seq -si
@@ -994,7 +992,7 @@ int blur2_do_tile_urrot2_neon_div9_f32 (int x, int y, int width, int height) {
     // loop over x (start from +1, end at -1 => no border)
     for (int j = x + 1; j < x + width; j+=4) {
 
-      // 3. Memory deinterliving
+      // 3. Memory load
       /* 
        * Use vld1q_u8 instructions to perform an interleved load of the four pixel components.
        * For all the three lines of the right column-group, we load from memory 4 pixels,
@@ -1224,7 +1222,7 @@ int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
     // loop over x (start from +1, end at -1 => no border)
     for (int j = x + 1; j < x + width; j+=4) {
 
-      // 3. Memory deinterliving
+      // 3. Memory interliving
       /* 
        * Use vld1q_u8 instructions to perform an interleved load of the four pixel components.
        * For all the three lines of the right column-group, we load from memory 4 pixels,
@@ -1440,7 +1438,7 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
     // loop over x (start from +1, end at -1 => no border)
     for (int j = x + 1; j < x + width; j+=4) {
 
-      // 3. Memory deinterliving
+      // 3. Memory interliving
       /* 
        * Use vld1q_u8 instructions to perform an interleved load of the four pixel components.
        * For all the three lines of the right column-group, we load from memory 4 pixels,
