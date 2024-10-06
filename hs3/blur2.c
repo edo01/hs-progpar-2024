@@ -1,3 +1,22 @@
+/**
+##############################################################
+##############################################################
+##############################################################
+
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+
+Note: For each optimization of the kernel, we run the program 
+multiple times to get the best (lowest) execution time. In this
+way, we can obtain a more accurate result, since the execution
+time can vary depending on the system load. This process was
+carried out for both Denver2 and Cortex-A57.
+
+##############################################################
+##############################################################
+##############################################################
+*/
+
 #include "easypap.h"
 
 #include <omp.h>
@@ -350,7 +369,7 @@ void print_reg_f32(const float32x4_t r, const char* name) {
  * way we can avoid the division operation and the corresponding
  * cost of conversion to float and back to integer.
  */
-uint16x8_t neon_vdiv9_u16(uint16x8_t n) {
+inline uint16x8_t neon_vdiv9_u16(uint16x8_t n) {
     // q1 = n - (n >> 3)
     uint16x8_t q1 = vsubq_u16(n, vshrq_n_u16(n, 3));
     // q1 += (q1 >> 6)
@@ -365,6 +384,41 @@ uint16x8_t neon_vdiv9_u16(uint16x8_t n) {
 }
 
 /**
+ * SCALAR VERSION with boarder management and variable rotation
+ * 
+ * D2: 755.031  ms
+ * CA52: 1146.858  ms
+ */
+
+// urrot1_neon_div9_f32
+/**
+ * In this first version of the vectorized blur2, we will use the
+ * NEON intrinsics to perform the computation of the blur. Every iteration
+ * of the loop will compute the blur of 16 pixels, using the left-right
+ * pattern to compute the 2D convolution. We perform the variable rotation,
+ * and also we manage the borders of the image using vectorized operations.
+ * Only the first and last row and column are computed using scalar operations.
+ * 
+ * 1. Prolugue: Load the first two columns of the image and compute the reduction.
+ *    The first column is composed of only three pixels, so we need to handle the
+ *    higher part of the registers. 
+ * 2. In the main loop, we load the third column of the image and compute the reduction.
+ *    We load and compute the pixels deinterlived, so we can process 16 pixels at each
+ *    iteration.
+ * 3. We perform the left-right pattern to compute the 2D convolution.
+ * 4. We perform first the promotion to 32 bits, then the conversion to float and 
+ *    finally the division by 9.
+ * 5. Convert the result back to 16 bits and store it in the output image.
+ * 6. Perform the variable rotation.
+ * 6. Handle the borders of the image.
+ * 
+ * D2: 1065.894  ms
+ * CA57: 844.604  ms
+ * 
+ * We observe a performance speedup of 1.36x on the Cortex-A57 and a slowdown
+ * of 0.71x on the Denver 2, compared to the scalar version of the first hands-on.
+ * The factors that may be influencing the performance are the overhead of the
+ * promotion to float and the division by 9.
  * 
  */
 int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
@@ -450,10 +504,9 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
     ra4_c_1_l_1_u8 = vld4q_u8((uint8_t*)&cur_img(i + 0, x + 1));
     ra4_c_1_l_2_u8 = vld4q_u8((uint8_t*)&cur_img(i + 1, x + 1));
 
-
     for(int index=0; index<4; index++){
       /*
-       * please note that we need only the lower part of the 16 bits for the 
+       * please note that we need only the lower part of the 16 pixels for the 
        * left column. The higher part is not used in the computation but only
        * to store the first pixel for the computation in the loop.
        */
@@ -488,7 +541,6 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
       ra4_c_0_l_1_u16_h.val[index] = vextq_u16(ra4_c_0_l_1_u16_h.val[index], ra4_c_0_l_1_u16_l.val[index], 1);    
     }
     
-
     // #############################################################
     //                      END PROLOGUE
     // #############################################################
@@ -634,6 +686,25 @@ int blur2_do_tile_urrot1_neon_div9_f32 (int x, int y, int width, int height) {
   return 0;
 }
 
+
+// urrot1_neon_div9_u16
+/*
+ * In this version, we will use neon_vdiv9_u16 to perform the division by 9
+ * using a series of shifts and additions. In this way we can avoid the division
+ * operation and the corresponding cost of conversion to float and back to integer.
+ * 
+ * D2: 453.231  ms
+ * CA57: 775.876  ms
+ * 
+ * In this version, we observe a dramatic performance speedup of 2.35 on the Denver 2
+ * and a slight performance speedup of 1.09 on the Cortex-A57 compared to the 
+ * urrot1_neon_div9_f32. This suggests that the overhead of the conversion to float
+ * and the division by 9 may be the real bottleneck in D2. Also, if we look 
+ * at the Cortex A57 documentation, we can see that the cvt instruction has a latency
+ * of 8 cycles, which is quite high. This may be the reason for the speedup on the
+ * Cortex A57. 
+ * 
+ */
 int blur2_do_tile_urrot1_neon_div9_u16 (int x, int y, int width, int height) {
   /* #########################################################################
    * #########################################################################
@@ -714,7 +785,7 @@ int blur2_do_tile_urrot1_neon_div9_u16 (int x, int y, int width, int height) {
 
     for(int index=0; index<4; index++){
       /*
-       * please note that we need only the lower part of the 16 bits for the 
+       * please note that we need only the lower part of the 16 pixeò for the 
        * left column. The higher part is not used in the computation but only
        * to store the first pixel for the computation in the loop.
        */
@@ -866,6 +937,20 @@ int blur2_do_tile_urrot1_neon_div9_u16 (int x, int y, int width, int height) {
   return 0;
 }
 
+// urrot2_neon_div9_f32
+/**
+ * In this version, the pixel colors will be left interleaved in the registers
+ * and the computation will be performed on 4 pixels at a time. In this way, we
+ * can avoid inserting another nested loop to handle each color component separately, 
+ * at the cost of increasing the number of loop iterations on the x-axis.
+ * 
+ * D2: 1041.107  ms
+ * CA57: 938.001  ms 
+ * 
+ * In both cases, we do not observe a significant performance change compared 
+ * to the urrot1_neon_div9_f32. This is in contrast to the performance speedup
+ * observed from urrot1 to urrot2 in the scalar version.    
+ */
 int blur2_do_tile_urrot2_neon_div9_f32 (int x, int y, int width, int height) {
   /* #########################################################################
    * #########################################################################
@@ -951,7 +1036,7 @@ int blur2_do_tile_urrot2_neon_div9_f32 (int x, int y, int width, int height) {
       r_c_1_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x + 1));
 
       /*
-      * please note that we need only the lower part of the 16 bits for the 
+      * please note that we need only the lower part of the 16 pixel for the 
       * left column. The higher part is not used in the computation but only
       * to store the first pixel for the computation in the loop.
       */
@@ -1104,6 +1189,16 @@ int blur2_do_tile_urrot2_neon_div9_f32 (int x, int y, int width, int height) {
   return 0;
 }
 
+// urrot2_neon_div9_u16
+/**
+ * As in urrot1_neon_div9_u16, we can use the same strategy to perform the division
+ * by 9 using the vdiv9_u16 function. 
+ * 
+ * D2: 363.881  ms
+ * CA57: 708.589  ms
+ * 
+ * We observe a similar performance speedup as in the urrot1_neon_div9_u16 version.
+ */
 int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
   /* #########################################################################
    * #########################################################################
@@ -1181,7 +1276,7 @@ int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
       r_c_1_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x + 1));
 
       /*
-      * please note that we need only the lower part of the 16 bits for the 
+      * please note that we need only the lower part of the 16 pixel for the 
       * left column. The higher part is not used in the computation but only
       * to store the first pixel for the computation in the loop.
       */
@@ -1310,6 +1405,22 @@ int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
   return 0;
 }
 
+// urrot2_neon_div8_u16
+/**
+ * In this version, we do a step further and we try to avoid completely the division
+ * by 9. We can remove the central pixel from the sum of the pixels and then divide
+ * by 8, which is equivalent to a shift of 3 bits to the right. This requires to
+ * store the central column and remove it from the sum of the pixels. Obviously,
+ * this will end up in a different result, but still a good approximation of the
+ * blur effect. 
+ * 
+ * D2: 230.567  ms
+ * CA57: 556.205  ms
+ * 
+ * We observe a speedup of 1.5x in the Denver 2 and 1.27x in the Cortex A57. This 
+ * confirms that avoiding the division by 9 is a good strategy to improve the performance
+ * of the blur effect.
+ */
 int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
   /* #########################################################################
    * #########################################################################
@@ -1391,7 +1502,7 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
       r_c_1_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x + 1));
 
       /*
-      * please note that we need only the lower part of the 16 bits for the 
+      * please note that we need only the lower part of the 16 pixel for the 
       * left column. The higher part is not used in the computation but only
       * to store the first pixel for the computation in the loop.
       */

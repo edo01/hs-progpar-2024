@@ -1,3 +1,22 @@
+/**
+##############################################################
+##############################################################
+##############################################################
+
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+
+Note: For each optimization of the kernel, we run the program 
+multiple times to get the best (lowest) execution time. In this
+way, we can obtain a more accurate result, since the execution
+time can vary depending on the system load. This process was
+carried out for both Denver2 and Cortex-A57.
+
+##############################################################
+##############################################################
+##############################################################
+*/
+
 #include "global.h"
 #include "img_data.h"
 #include "cppdefs.h"
@@ -13,7 +32,7 @@ extern "C" void compute_borders(int x, int y, int width, int height, int bsize);
  * way we can avoid the division operation and the corresponding
  * cost of conversion to float and back to integer.
  */
-mipp::Reg<uint16_t> mipp_vdiv9(mipp::Reg<uint16_t> n) {
+inline mipp::Reg<uint16_t> mipp_vdiv9(mipp::Reg<uint16_t> n) {
     mipp::Reg<uint16_t> q1, q2, r;
     q1 =  n - (n >> 3);
     q1 += (q1 >> 6);
@@ -23,7 +42,29 @@ mipp::Reg<uint16_t> mipp_vdiv9(mipp::Reg<uint16_t> n) {
     return r;
 }
 
-
+// urrot2_mipp_div9_f32
+/**
+ * In this version we will use the mipp library to perform the blur.
+ * At first, we can see that the code produced is more readable and
+ * easier to understand if compared to the NEON intrinsics. The code 
+ * is also more portable, since it can be compiled on different
+ * architectures and the mipp library will take care of the correct
+ * implementation of the intrinsics. This comes with a cost in terms
+ * of performance, since the mipp library may not be as optimized as
+ * the NEON intrinsics for a specific architecture.
+ * 
+ * 
+ * D2: 402.486  ms
+ * CA57: 962.758  ms
+ * 
+ * Denver 2 shows a very strange behavior, outperforming the NEON
+ * intrinsics version. Maybe this is due to the fact that Denver 2
+ * performs better optimizations thanks to the hardware optimizations.
+ * On the other hand, the Cortex A57 shows a comparable performance
+ * to the NEON intrinsics version, which suggest that the mipp library
+ * introduces a small overhead to the computation.
+ *  
+ */
 EXTERN int blur2_do_tile_urrot2_mipp_div9_f32(int x, int y, int width, int height)
 {
   /* #########################################################################
@@ -266,6 +307,19 @@ EXTERN int blur2_do_tile_urrot2_mipp_div9_f32(int x, int y, int width, int heigh
   return 0;
 }
 
+// urrot2_mipp_div9_u16
+/**
+ * As in urrot2_neon_div9_u16, we use mipp_vdiv9 to perform the division, 
+ * avoiding the promotion to uint_32 and the conversion to float and back to integer.
+ * 
+ * D2: 345.982  ms
+ * CA57: 847.287  ms
+ * 
+ * Here, in the case of Cortex A-57, the overhead of the mipp library is more evident, 
+ * adding a small overhead to the computation. On the other hand, the Denver 2 shows
+ * comparable performance to the NEON intrinsics version.
+ * 
+ */
 EXTERN int blur2_do_tile_urrot2_mipp_div9_u16(int x, int y, int width, int height)
 {
   /* #########################################################################
@@ -478,6 +532,19 @@ EXTERN int blur2_do_tile_urrot2_mipp_div9_u16(int x, int y, int width, int heigh
   return 0;
 }
 
+// urrot2_mipp_div8_u16
+/**
+ * In this final version, we avoid the division by 9, as in the urrot2_neon_div8_u16 
+ * version.
+ * 
+ * D2: 243.675 ms
+ * CA57: 564.569 ms
+ * 
+ * In both cases, the performance is comparable to the NEON version, with a slight
+ * overhead. This suggests that in some cases, the mipp library does not introduce
+ * a significant overhead in the computation, while in other cases, it may introduce
+ * a small overhead due to its abstraction layer.
+*/
 EXTERN int blur2_do_tile_urrot2_mipp_div8_u16(int x, int y, int width, int height)
 {
   /* #########################################################################
