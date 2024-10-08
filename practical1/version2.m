@@ -33,66 +33,6 @@ function studyAlgorithmAccuracy(num_datasets)
     grid on;
 end
 
-function res = classicHorner(a, x)
-    n = length(a);
-    res = a(n);
-    for i = n-1:-1:1
-        res = res * x + a(i);
-    end
-end
-
-function [x, y] = FastTwoSum(a, b)
-    x = a + b;
-    y = (a - x) + b;
-end
-
-function [x, y] = TwoSum(a, b)
-    x = a + b;
-    z = x - a;
-    y = (a - (x - z)) + (b - z);
-end
-
-function [x,y] = Split(a)
-    s = 27;
-    factor = 2^s+1; % s = 27
-    c = factor*a;
-    x = c-(c-a);
-    y = a-x;
-end
-
-function [x, y] = TwoProduct(a, b)
-    x = a * b;
-    [a1, a2] = Split(a);
-    [b1, b2] = Split(b);
-    y = a2 * b2 - (((x - a1 * b1) - a2 * b1) - a1 * b2);
-end
-
-function res = CompensatedHorner(a, x)
-    n = length(a);
-    s = a(n);
-    r = 0; % r represents the error
-    for i = n-1:-1:1
-		    % Calculate the product and error of the current item
-        [p, pi] = TwoProduct(s, x);
-        [s, sigma] = TwoSum(p, a(i));
-        r = r * x + (pi + sigma);
-    end
-    res = s + r;
-end
-
-function res = exactHorner(a, x)
-    syms xs;
-    poly = poly2sym(a);
-    res = subs(poly, xs, x);
-end
-
-function cond_num = condp(a, x)
-    n = length(a) - 1;
-    abs_sum = sum(abs(a) .* abs(x).^[0:n]);
-    p_val = polyval(a, x);
-    cond_num = abs_sum / abs(p_val);
-end
-
 % Function to test Classic and Compensated Horner schemes
 % This function computes and plots the direct relative errors
 % and condition numbers for the polynomials p_n(x) = (x - 1)^n
