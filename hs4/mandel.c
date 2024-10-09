@@ -2,7 +2,8 @@
 #include "easypap.h"
 
 #include <omp.h>
-
+#include <mipp.h>
+#include <arm_neon.h>
 
 #define MAX_ITERATIONS 4096
 #define ZOOM_SPEED -0.01
