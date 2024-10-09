@@ -83,6 +83,72 @@ unsigned mandel_compute_omp_tiled (unsigned nb_iter)
   return 0;
 }
 
+
+/*
+ * MIPP version 
+ * Write the comput_one_pixel function into the mandel_compute_simd_tiled
+ * Early Exit:
+ * Use mipp::testz(mask) to reduce the mask register to determine whether all pixels satisfy the condition |Z| > 2. 
+ * If so, exit the loop early.
+*/
+void mandel_compute_simd_tiled(unsigned nb_iter)
+{
+  const int vector_size = mipp::N<float>();  // Get the size of the SIMD vector
+
+  for (unsigned it = 1; it <= nb_iter; it++) {
+
+    for (int y = 0; y < DIM; y += TILE_H) {
+      for (int x = 0; x < DIM; x += TILE_W) {
+        
+        // Traverse the pixels in the tile and use SIMD to process multiple pixels at the same time
+        for (int i = y; i < y + TILE_H; i++) {
+          for (int j = x; j < x + TILE_W; j += vector_size) {
+
+            // init C（cr, ci）
+            mipp::Reg<float> cr = mipp::Reg<float>(leftX + xstep * j) + mipp::Reg<float>::iota(0, xstep);
+            mipp::Reg<float> ci = mipp::Reg<float>(topY - ystep * i);
+
+            // init Z = 0（zr, zi）
+            mipp::Reg<float> zr(0.0f), zi(0.0f);
+            mipp::Reg<int> iter_count(0);
+
+            mipp::Reg<float> zr2 = zr * zr;
+            mipp::Reg<float> zi2 = zi * zi;
+
+            for (int iter = 0; iter < MAX_ITERATIONS; iter++) {
+              // Determine whether to continue iterating
+              auto mask = (zr2 + zi2) < 4.0f;
+
+              // If all elements no longer need to be iterated, exit the loop early
+              if (mipp::testz(mask)) {
+                break;
+              }
+
+              // Increase the iteration count of pixels that meet the criteria
+              iter_count = mipp::blend(iter_count + 1, iter_count, mask);
+
+             // Update the value of Z
+              mipp::Reg<float> tmp_zi = 2.0f * zr * zi + ci;
+              zr = zr2 - zi2 + cr;
+              zi = tmp_zi;
+
+              zr2 = zr * zr;
+              zi2 = zi * zi;
+            }
+
+            // store
+            for (int v = 0; v < vector_size; v++) {
+              cur_img(i, j + v) = iteration_to_color(iter_count[v]);
+            }
+          }
+        }
+      }
+    }
+
+    zoom();  
+  }
+}
+
 /////////////// Mandelbrot basic computation
 
 static unsigned iteration_to_color (unsigned iter)
