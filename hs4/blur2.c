@@ -95,6 +95,10 @@ unsigned blur2_compute_omp_tiled (unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++) {
 
+    /* 
+     * adding collapse allows to split the image both in 
+     * vertical tiles and horizontal tiles. 
+    */
     #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = 0; y < DIM; y += TILE_H)
       for (int x = 0; x < DIM; x += TILE_W)
@@ -1441,6 +1445,9 @@ int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
  * confirms that avoiding the division by 9 is a good strategy to improve the performance
  * of the blur effect.
  */
+/**
+ * 1024X1024*4 B = 4MB -> we are out of the L1 cache and L2 cache -> we are using the RAM
+ */
 int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
   /* #########################################################################
    * #########################################################################
@@ -1513,14 +1520,17 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
      * instructions.
      */ 
     {
-      r_c_0_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x));
+      /**
+       * MEMORY OPERATIONS: each vld1q_u8 instruction loads 4 int from memory
+       * 6*4 integers are loaded in total.
+       */
+      r_c_0_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x)); 
       r_c_0_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x));
       r_c_0_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x));
       
       r_c_1_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, x + 1));
       r_c_1_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, x + 1));
       r_c_1_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, x + 1));
-
       /*
       * please note that we need only the lower part of the 16 pixel for the 
       * left column. The higher part is not used in the computation but only
@@ -1575,6 +1585,10 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
        * For all the three lines of the right column-group, we load from memory 4 pixels,
        * leaving interleaved the colors. Now each register is composed by 4 pixels.
        */
+      /**
+       * MEMORY OPERATIONS: each vld1q_u8 instruction loads 4 int from memory
+       * 3*4 integers are loaded in total.
+       */
       r_c_2_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, j + 4)); // [[ r1 g1 b1 a1 ] [r2 g2 b2 a2] [r3 g3 b3 a3] [ r4 g4 b4 a4 ]]
       r_c_2_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, j + 4));
       r_c_2_l_2_u8 = vld1q_u8((uint8_t*)&cur_img(i + 1, j + 4));
@@ -1607,6 +1621,10 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
       /*
        * Accumulate the color component of the right column-group.
        */
+      /**
+       * ARITHMETIC OPERATIONS: each vaddq_u16 instruction performs 4 additions
+       * 4*4 additions are performed in total.
+       */
       r_c_2_l_1_u16_l = vaddq_u16(r_c_2_l_2_u16_l,
                                               vaddq_u16(r_c_2_l_1_u16_l, r_c_2_l_0_u16_l)); // lower part
       r_c_2_l_1_u16_h = vaddq_u16(r_c_2_l_2_u16_h,
@@ -1628,14 +1646,26 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
       r_c_1_l_1_u16_h_temp = r_c_1_l_1_u16_h;
 
       // vertical sum
+      /**
+       * ARITHMETIC OPERATIONS: each vaddq_u16 instruction performs 4 additions
+       * 4*4 additions are performed in total.
+       */
       r_c_1_l_1_u16_l = vaddq_u16(vaddq_u16(r_left_l, r_c_1_l_1_u16_l), r_right_l); // sum of the lower part
       r_c_1_l_1_u16_h = vaddq_u16(vaddq_u16(r_left_h, r_c_1_l_1_u16_h), r_right_h); // sum of the higher part
 
       // remove the central line
+      /**
+       * ARITHMETIC OPERATIONS: each vsubq_u16 instruction performs 4 subtractions
+       * 2*4 subtractions are performed in total.
+       */
       r_c_1_l_1_u16_l = vsubq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_l_central);
       r_c_1_l_1_u16_h = vsubq_u16(r_c_1_l_1_u16_h, r_c_1_l_1_u16_h_central);
 
       // division by 8 using just a vectorized shift operation
+      /**
+       * LOGICAL OPERATIONS: each vshrq_n_u16 instruction performs 4 shifts
+       * 2*4 shifts are performed in total.
+       */
       r_c_1_l_1_u16_l = vshrq_n_u16(r_c_1_l_1_u16_l, 3);
       r_c_1_l_1_u16_h = vshrq_n_u16(r_c_1_l_1_u16_h, 3);
 
@@ -1644,6 +1674,10 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
 
       // 12. store 
       // use vst1 to store back the data
+      /**
+       * MEMORY OPERATIONS: each vst1q_u8 instruction stores 4 int to memory
+       * 1*4 integers are stored in total.
+       */
       vst1q_u8((uint8_t*)&next_img(i, j), r_sum_u8);
 
       // 13. variable rotation
