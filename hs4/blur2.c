@@ -106,6 +106,46 @@ unsigned blur2_compute_omp_tiled (unsigned nb_iter)
   return 0;
 }
 
+// 2.1 Work to do #6
+// Memory Analysis for 1024.png
+// Most loads and stores occur in RAM due to the need to access neighboring pixels in a 3x3 blur kernel window.
+// Estimated memory accesses per pixel: 10 (9 loads + 1 store)
+// Operational Intensity (OI): 0.25 FLOPs/byte
+// According to the Roofline model, the kernel is memory-bound as the operational intensity is low.
+
+/* Steps to Analyze:
+ *
+ * Memory Location:
+ * Analyze in which memory you are performing most of the loads and stores.
+ * If you are accessing pixels that are spatially close to each other, the cache might be used efficiently. 
+ * However, if memory access is more scattered, more accesses will be made to RAM.
+ *
+ * Estimate Memory Accesses Per Pixel:
+ * For a blur kernel, each pixel typically involves accessing a window of neighboring pixels. 
+ * For example, in a 3x3 blur kernel, you would need to load the pixel values from a 3x3 grid, which would be 9 loads per pixel.
+ * Assuming you store the result for each pixel, that would be 1 store per pixel.
+ * Total memory accesses per pixel = 9 loads + 1 store = 10 accesses.
+ *
+ * Calculate Operational Intensity (OI):
+ * Operational Intensity (OI) is calculated as the ratio of floating-point operations (FLOPs) to memory accesses.
+ * OI = flops / memops × sizeOfData = AI / sizeOfData, sizeOfData depends on the datatype,
+ * Assume each pixel computation requires around 10 floating-point operations (FLOPs) per pixel.
+ * A breakdown of floating point operations:
+ * Addition: If you do a 3x3 average blur convolution, the most basic operation is to add 9 pixel values ​​together.
+ * Division: After the additions are done, you may divide the sum by the number of pixels to get the average, which requires 1 division.
+ * We calculated 10 memory accesses (9 loads and 1 store) per pixel.
+ * Each pixel is typically represented by a 32-bit float (4 bytes).
+ * Thus, the result becomes: 10 FLops / 10(memops) * 4(bytes) = 0.25 FLOPS/byte
+ *
+*/
+
+
+
+
+
+
+
+
 /**
  * #########################################################################
  * #########################################################################
