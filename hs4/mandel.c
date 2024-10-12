@@ -84,6 +84,32 @@ unsigned mandel_compute_omp_tiled (unsigned nb_iter)
   return 0;
 }
 
+// Memory Analysis for 1024x1024 Mandelbrot
+// Most loads and stores occur when accessing real and imaginary values during the iterative Mandelbrot computation.
+// Estimated memory accesses per pixel: 11 (10 loads + 1 store)
+// Estimated FLOPs per pixel: 1000 FLOPs (assuming 100 iterations with 10 FLOPs/iteration)
+// Operational Intensity (OI): 22.73 FLOPs/byte
+// According to the Roofline model, the Mandelbrot computation is compute-bound as it has a high OI and performs a significant number of FLOPs per memory access.
+
+/*
+ * Estimate Memory Accesses per Pixel: 
+ * Loads: For each pixel, we need to: 
+ * Load the initial complex number (2 floating-point values: real and imaginary parts).
+ * Load temporary values during the iterative computation (e.g., z_r, z_i)
+ * Stores: After calculating the iteration count for a pixel, we store the result (1 store per pixel).
+ *
+ * Calculate Operational Intensity (OI):
+ * FLOPs: The number of floating-point operations per pixel.In the Mandelbrot algorithm, each pixel involves complex number arithmetic
+ * Each iteration involves:
+ * 1. Two multiplications z_r^2, z_i^2.
+ * 2. Two additions z_r^2 - z_i^2 + c_r , and 2z_rz_i + c_i.
+ * we assume 100 iterations with 10 FLOPs per iteration, so the result; OI = 1000 FLOPs / 11 * 4 bytes = 22.73 FLOS/byte.
+ *
+ * Memory-bound: If the OI is low and the system is limited by memory bandwidth, the code is memory-bound.
+ * Compute-bound: If the OI is high and the code is limited by CPU performance (FLOPs), the code is compute-bound.
+ * Here, we have an OI of 22.73 FLOPs/byte, the Mandelbrot computation is likely compute-bound.
+ */
+
 
 /*
  * MIPP version 
