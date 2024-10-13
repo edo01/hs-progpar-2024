@@ -283,6 +283,13 @@ void mandel_compute_mipp_tiled(unsigned nb_iter)
 
 
 // Compute the Mandelbrot set using NEON SIMD instructions.
+/*
+ * Here, the `compute_one_pixel(int i, int j)` function has been removed from the SIMD version of the Mandelbrot set computation 
+ * because the implementation now processes multiple pixels simultaneously using vectorized operations. 
+ * This change enhances performance by eliminating the overhead of function calls and allows for inline calculations within the main loop. 
+ * Additionally, the SIMD version incorporates early exit logic directly in the loop, using masks to determine if all processed pixels have escaped, 
+ * further optimizing performance by reducing unnecessary iterations.
+/*
 unsigned mandel_compute_neon_tiled(unsigned nb_iter, uint32_t* cur_img) {
     const int vector_size = sizeof(float32x4_t) / sizeof(float); // Size of NEON vector (4 floats).
 
