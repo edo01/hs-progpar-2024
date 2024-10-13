@@ -6,16 +6,135 @@
 AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
 BOARD ID: Q
 
-Note: For each optimization of the kernel, we run the program 
-multiple times to get the best (lowest) execution time. In this
-way, we can obtain a more accurate result, since the execution
-time can vary depending on the system load. This process was
-carried out for both Denver2 and Cortex-A57.
-
 ##############################################################
 ##############################################################
 ##############################################################
 */
+
+//###########################################################################
+// ######################## 2.1 Work to do #4 ###############################
+//###########################################################################
+/** 
+ * We run the kernel for 100 iteration, using different configurations 
+ * for the tiling,the scheduling and the number of threads. We used a 
+ * script to run the program with all the possible combinations of the
+ * parameters, skipping the invalid ones(number of tiles less than the 
+ * number of threads etc...). We then collected the results and we 
+ * got the best configuration under 200ms.
+ * 
+ * cpu,th,tw,threads,schedule,schedule_n,time
+ * cortex,64,1024,4,static,1,179.446
+ * denver,64,1024,2,static,1,185.216
+ * cortex,128,1024,4,static,1,169.527
+ * denver,128,1024,2,static,1,151.925 ## BEST CONFIGURATION
+ * cortex,256,1024,4,static,1,178.139
+ * denver,256,1024,2,static,1,168.320
+ * denver,512,1024,2,static,1,157.194 
+ * cortex,64,1024,4,static,2,183.633
+ * denver,64,1024,2,static,2,198.052
+ * full_system,64,1024,6,static,2,194.730
+ * cortex,128,1024,4,static,2,176.006
+ * denver,128,1024,2,static,2,184.148
+ * denver,256,1024,2,static,2,161.889
+ * 
+ * The best configuration is the one with:
+ * cpu: denver
+ * th: 128
+ * tw: 1024
+ * threads: 2
+ * schedule: static,1
+ * time: 151.925 ms
+ * 
+ * 
+ * We can observe that in the best configuration, the 
+ * scheduling is static with a chunk size of 1 or 2. No
+ * configuration with dynamic scheduling was able to
+ * stay under 200ms. This may be due to the fact that the
+ * the computation is very balanced and the overhead of
+ * dynamic scheduling is not worth it. 
+ * 
+ * 
+ */
+
+//###########################################################################
+// ######################## 2.1 Work to do #6 ###############################
+//###########################################################################
+// Memory Analysis for 1024.png
+/* 
+ * We are dealing with a 1024x1024 image, which means that the image has a size of 4MB.
+ * From our previous analysis, we know that when dealing with a workload of that size,
+ * we are out of the L1 cache and L2 cache, and we are using the RAM. So most 
+ * of the loads and stores will be cache misses and limiting the bandwidth of the memory.
+ */
+// Operational Intensity (OI) Analysis
+/**
+ * In a normal blur kernel, with 3x3 window, we need to load 9 pixels and store 1 pixel.
+ * We need to perform also 9 ops per pixel, which are 8 additions and 1 division.
+ * Please note that in this analysis, we are not considering the boarders which require
+ * less ops and memory accesses.
+ * 
+ * Here thanks to the variable rotation and reduction, we can reduce the number of ops
+ * and memory accesses thanks to the reuse of the data.
+ * In this version, if we do not consider the boarders, we need to load
+ * only 3 pixels and store 1. Also, since we are using a simplified blur, we need to perform
+ * only 3 additions, 1 subtraction and 1 shifts for the division by 8. Each of these operations
+ * is performed on both the lower and higher part of the 16-bit components. 
+ * Additionally, we need to perform 19 additional operations to prepare the registers for the reduction
+ * and the left-right pattern.
+ * So, we have 29 ops in total and 4 memory accesses per each pixel. 
+ * In total we have 1024 - 2 pixels at the borders = 1022 * 1022 pixels to process in the main loop.
+ * 
+ * In the prologue, we need to load 6 pixels and perform 2 additions for the reduction
+ * of the first column and 2 for the reduction of the second column. Only in the second column,
+ * we need to perform the reduction on both the lower and higher part of the 16-bit components.
+ * Moreover, in order to prepare the registers for the reduction, we need to perform 18 additional
+ * operations.
+ * So, we have to add to the count, for only the first 16 pixels of each line, 6 loads and 24 ops.
+ * 
+ * To sum up, we have:
+ * - 1022 * 1022 * 29 ops + 1022 * 16 * 24 ops = 30.682.484 ops
+ * - 1022 * 1022 * 4 memory accesses + 1022 * 16 * 6 memory accesses = 4.276.048 memory accesses
+ * 
+ */
+
+// The ARITHMETIC INTENSITY is ops/mem_acc = 7.17 
+
+// The OPERATIONAL INTENSITY is AI/size_of_data = 7.17 / 4 = 1.793 
+//(We are using integers, so the size of the data is 4 bytes.)
+
+// Roofline Model Analysis
+/**
+ * In order to define the Roofline Model, we need to know the peak performance of the CPU.
+ * For the Cortex-A57 we have: 
+ *  - freq: 2.04 GHz
+ *  - nops: 3 instructions per cycle x 4 simd width when using integers = 12 instructions per cycle
+ *  - number of cores: 4
+ * The peak performance is 2.04 GHz x 12 instructions per cycle x 4 cores = 97.92 Gops/s
+ * 
+ * The memory bandwidth for the Cortex-A57, according to the previous analysis, is 9.92 GB/s
+ * when using all the cores and accessing the RAM. 
+ * From the Roofline model, we can compute the minimum between the peak performance and the memory 
+ * bandwidth*Operational Intensity, which is equal to 9.92 GB/s x 7.17 = 17.795 Gops/s. 
+ * 
+ * So, the kernel is memory-bound as the operational intensity is lower than the memory bandwidth
+ * when using all the Cortex's cores. The maximum performance achievable will be of 17.795 Gops/s.
+ * 
+ * 
+ * For the Denver2, we have:
+ *  - freq: 2.04 GHz
+ *  - nops: 2 instructions per cycle x 4 simd width when using integers = 8 instructions per cycle
+ *  - number of cores: 2
+ * The peak performance is 2.04 GHz x 8 instructions per cycle x 2 cores = 32.64 Gops/s
+ * 
+ * The memory bandwidth for the Denver, according to the previous analysis, is 20.7 GB/s
+ * when using all the cores and accessing the RAM. 
+ * From the Roofline model, we can compute the minimum between the peak performance and the memory 
+ * bandwidth*Operational Intensity, which is equal to 20.7 GB/s x 7.17 = 148 Gops/s. 
+ * 
+ * So, the kernel, when using all the Denver's cores, is compute-bound as the operational intensity
+ * is higher than the memory bandwidth. The maximum performance achievable will be of 32.64 Gops/s.
+ */
+
 
 #include "easypap.h"
 
@@ -110,50 +229,6 @@ unsigned blur2_compute_omp_tiled (unsigned nb_iter)
   return 0;
 }
 
-// 2.1 Work to do #6
-// Memory Analysis for 1024.png
-// Most loads and stores occur in RAM due to the need to access neighboring pixels in a 3x3 blur kernel window.
-// Estimated memory accesses per pixel: 10 (9 loads + 1 store)
-// Operational Intensity (OI): 0.25 FLOPs/byte
-// According to the Roofline model, the kernel is memory-bound as the operational intensity is low.
-
-/* Steps to Analyze:
- *
- * Memory Location:
- * Analyze in which memory you are performing most of the loads and stores.
- * If you are accessing pixels that are spatially close to each other, the cache might be used efficiently. 
- * However, if memory access is more scattered, more accesses will be made to RAM.
- *
- * Estimate Memory Accesses Per Pixel:
- * For a blur kernel, each pixel typically involves accessing a window of neighboring pixels. 
- * For example, in a 3x3 blur kernel, you would need to load the pixel values from a 3x3 grid, which would be 9 loads per pixel.
- * Assuming you store the result for each pixel, that would be 1 store per pixel.
- * Total memory accesses per pixel = 9 loads + 1 store = 10 accesses.
- *
- * Calculate Operational Intensity (OI):
- * Operational Intensity (OI) is calculated as the ratio of floating-point operations (FLOPs) to memory accesses.
- * OI = flops / memops × sizeOfData = AI / sizeOfData, sizeOfData depends on the datatype,
- * Assume each pixel computation requires around 10 floating-point operations (FLOPs) per pixel.
- * A breakdown of floating point operations:
- * Addition: If you do a 3x3 average blur convolution, the most basic operation is to add 9 pixel values ​​together.
- * Division: After the additions are done, you may divide the sum by the number of pixels to get the average, which requires 1 division.
- * We calculated 10 memory accesses (9 loads and 1 store) per pixel.
- * Each pixel is typically represented by a 32-bit float (4 bytes).
- * Thus, the result becomes: 10 FLops / 10(memops) * 4(bytes) = 0.25 FLOPS/byte
- *
-*/
-
-
-
-
-
-
-
-
-/**
- * #########################################################################
- * #########################################################################
- */
 
 void compute_borders(int x, int y, int width, int height, int bsize) 
 {
@@ -1470,24 +1545,8 @@ int blur2_do_tile_urrot2_neon_div9_u16 (int x, int y, int width, int height) {
 }
 
 // urrot2_neon_div8_u16
-/**
- * In this version, we do a step further and we try to avoid completely the division
- * by 9. We can remove the central pixel from the sum of the pixels and then divide
- * by 8, which is equivalent to a shift of 3 bits to the right. This requires to
- * store the central column and remove it from the sum of the pixels. Obviously,
- * this will end up in a different result, but still a good approximation of the
- * blur effect. 
- * 
- * D2: 230.567  ms
- * CA57: 556.205  ms
- * 
- * We observe a speedup of 1.5x in the Denver 2 and 1.27x in the Cortex A57. This 
- * confirms that avoiding the division by 9 is a good strategy to improve the performance
- * of the blur effect.
- */
-/**
- * 1024X1024*4 B = 4MB -> we are out of the L1 cache and L2 cache -> we are using the RAM
- */
+
+
 int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
   /* #########################################################################
    * #########################################################################
@@ -1600,6 +1659,9 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
       r_c_1_l_2_u16_h = vmovl_u8(vget_high_u8(r_c_1_l_2_u8));
 
       // reduction
+      /**
+       * ARITHMETIC OPERATIONS: 2 additions for each pixel on the same column -> 6 additions in total
+       */
       r_c_0_l_1_u16_l = vaddq_u16(r_c_0_l_2_u16_l,
                                     vaddq_u16(r_c_0_l_1_u16_l, r_c_0_l_0_u16_l)); // lower part
       
@@ -1626,8 +1688,7 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
        * leaving interleaved the colors. Now each register is composed by 4 pixels.
        */
       /**
-       * MEMORY OPERATIONS: each vld1q_u8 instruction loads 4 int from memory
-       * 3*4 integers are loaded in total.
+       * MEMORY OPERATIONS: for each pixel we perform 3 loads
        */
       r_c_2_l_0_u8 = vld1q_u8((uint8_t*)&cur_img(i - 1, j + 4)); // [[ r1 g1 b1 a1 ] [r2 g2 b2 a2] [r3 g3 b3 a3] [ r4 g4 b4 a4 ]]
       r_c_2_l_1_u8 = vld1q_u8((uint8_t*)&cur_img(i + 0, j + 4));
@@ -1662,8 +1723,7 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
        * Accumulate the color component of the right column-group.
        */
       /**
-       * ARITHMETIC OPERATIONS: each vaddq_u16 instruction performs 4 additions
-       * 4*4 additions are performed in total.
+       * ARITHMETIC OPERATIONS: 2 addition for each pixel on the same column -> 4 additions in totalss
        */
       r_c_2_l_1_u16_l = vaddq_u16(r_c_2_l_2_u16_l,
                                               vaddq_u16(r_c_2_l_1_u16_l, r_c_2_l_0_u16_l)); // lower part
@@ -1687,16 +1747,14 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
 
       // vertical sum
       /**
-       * ARITHMETIC OPERATIONS: each vaddq_u16 instruction performs 4 additions
-       * 4*4 additions are performed in total.
+       * ARITHMETIC OPERATIONS: 2 additions for each pixel with the other columns -> 4 additions in total
        */
       r_c_1_l_1_u16_l = vaddq_u16(vaddq_u16(r_left_l, r_c_1_l_1_u16_l), r_right_l); // sum of the lower part
       r_c_1_l_1_u16_h = vaddq_u16(vaddq_u16(r_left_h, r_c_1_l_1_u16_h), r_right_h); // sum of the higher part
 
       // remove the central line
       /**
-       * ARITHMETIC OPERATIONS: each vsubq_u16 instruction performs 4 subtractions
-       * 2*4 subtractions are performed in total.
+       * ARITHMETIC OPERATIONS: 1 subtractions for each pixel with the central column -> 2 subtractions in total
        */
       r_c_1_l_1_u16_l = vsubq_u16(r_c_1_l_1_u16_l, r_c_1_l_1_u16_l_central);
       r_c_1_l_1_u16_h = vsubq_u16(r_c_1_l_1_u16_h, r_c_1_l_1_u16_h_central);
@@ -1715,8 +1773,7 @@ int blur2_do_tile_urrot2_neon_div8_u16 (int x, int y, int width, int height) {
       // 12. store 
       // use vst1 to store back the data
       /**
-       * MEMORY OPERATIONS: each vst1q_u8 instruction stores 4 int to memory
-       * 1*4 integers are stored in total.
+       * MEMORY OPERATIONS: each pixel is stored once in memory
        */
       vst1q_u8((uint8_t*)&next_img(i, j), r_sum_u8);
 

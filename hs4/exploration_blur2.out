@@ -487,10 +487,10 @@ denver,1024,512,2,static,3,940.697
 cortex,64,1024,4,static,1,179.446
 denver,64,1024,2,static,1,185.216
 cortex,128,1024,4,static,1,169.527
-denver,128,1024,2,static,1,151.925
+denver,128,1024,2,static,1,151.925 ## BEST CONFIGURATION
 cortex,256,1024,4,static,1,178.139
 denver,256,1024,2,static,1,168.320
-denver,512,1024,2,static,1,147.194 ## BEST CONFIGURATION
+denver,512,1024,2,static,1,157.194 
 cortex,64,1024,4,static,2,183.633
 denver,64,1024,2,static,2,198.052
 full_system,64,1024,6,static,2,194.730
