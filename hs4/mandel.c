@@ -223,7 +223,7 @@ unsigned mandel_compute_omp_tiled (unsigned nb_iter)
  * Use mipp::testz(mask) to reduce the mask register to determine whether all pixels satisfy the condition |Z| > 2. 
  * If so, exit the loop early.
 */
-void mandel_compute_simd_tiled(unsigned nb_iter)
+void mandel_compute_mipp_tiled(unsigned nb_iter)
 {
   const int vector_size = mipp::N<float>();  // Get the size of the SIMD vector
 
@@ -280,6 +280,58 @@ void mandel_compute_simd_tiled(unsigned nb_iter)
     zoom();  
   }
 }
+
+
+// Compute the Mandelbrot set using NEON SIMD instructions.
+unsigned mandel_compute_neon_tiled(unsigned nb_iter, uint32_t* cur_img) {
+    const int vector_size = sizeof(float32x4_t) / sizeof(float); // Size of NEON vector (4 floats).
+
+    for (unsigned it = 1; it <= nb_iter; it++) {
+        for (int y = 0; y < DIM; y += TILE_H) { 
+            for (int x = 0; x < DIM; x += TILE_W) { 
+                for (int i = y; i < y + TILE_H; i++) { 
+                    for (int j = x; j < x + TILE_W; j += vector_size) { // Process pixels in groups of 4.
+                        // Initialize complex number C (r_cr, r_ci) based on pixel coordinates.
+                        float32x4_t r_cr = vld1q_f32(&(r_leftX + r_xstep * j)); 
+                        float32x4_t r_ci = vdupq_n_f32(r_topY - r_ystep * i); 
+
+                        // Initialize Z = 0 (r_zr, r_zi).
+                        float32x4_t r_zr = vdupq_n_f32(0.0f); 
+                        float32x4_t r_zi = vdupq_n_f32(0.0f); 
+                        uint32x4_t r_iter_count = vdupq_n_u32(0); 
+
+                        for (int iter = 0; iter < MAX_ITERATIONS; iter++) { // Iterate until max iterations or escape condition is met.
+                            float32x4_t r_zr2 = vmulq_f32(r_zr, r_zr); // Z_r^2.
+                            float32x4_t r_zi2 = vmulq_f32(r_zi, r_zi); // Z_i^2.
+
+                            // Check if |Z|^2 exceeds 4 to determine if we should continue iterating.
+                            uint32x4_t mask = vcgtq_f32(vaddq_f32(r_zr2, r_zi2), vdupq_n_f32(4.0f));
+
+                            if (vmaxvq_u32(mask) == UINT32_MAX) { // If all pixels exceed escape condition, exit loop early.
+                                break;
+                            }
+
+                            r_iter_count = vaddq_u32(r_iter_count, vandq_u32(mask, vdupq_n_u32(1))); 
+
+                            // Update Z values based on the Mandelbrot formula: Z = Z^2 + C
+                            float32x4_t tmp_r_zi = vmlaq_n_f32(vmulq_f32(r_zr, r_zi), vdupq_n_f32(2.0f), r_ci);
+                            r_zr = vaddq_f32(vsubq_f32(r_zr2, r_zi2), r_cr);
+                            r_zi = tmp_r_zi;
+                        }
+
+                        
+                        for (int v = 0; v < vector_size; v++) {
+                            cur_img[i * DIM + j + v] = iteration_to_color(vgetq_lane_u32(r_iter_count, v));
+                        }
+                    }
+                }
+            }
+        }
+        zoom(); // Adjust view for next iteration (zooming effect).
+    }
+}
+
+
 
 /////////////// Mandelbrot basic computation
 
