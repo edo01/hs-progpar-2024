@@ -1,3 +1,108 @@
+//###########################################################################
+// ######################## 2.1 Work to do #4 ###############################
+//###########################################################################
+/** 
+ * We run the kernel for 10 iteration, using different configurations 
+ * for the tiling,the scheduling and the number of threads. We used a 
+ * script to run the program with all the possible combinations of the
+ * parameters, skipping the invalid ones(number of tiles less than the 
+ * number of threads etc...). We then collected the results and we 
+ * got the best configuration under 3000ms.
+ * 
+ * cpu,th,tw,threads,schedule,schedule_n,time
+ * full_system,64,64,6,static,1,2840.531
+ * full_system,64,128,6,static,1,2996.948
+ * full_system,64,256,6,static,1,2566.211 # BEST CONFIGURATION
+ * full_system,128,64,6,static,1,2957.591
+ * full_system,256,64,6,static,1,2657.949
+ * full_system,256,256,6,static,1,2956.679
+ * full_system,1024,64,6,static,1,2912.659
+ * full_system,128,128,6,static,3,2965.859
+ * full_system,64,64,6,dynamic,1,2820.350
+ * full_system,512,64,6,dynamic,1,2882.839
+ * full_system,1024,64,6,dynamic,1,2760.596
+ * full_system,128,256,6,dynamic,3,2980.233
+ * 
+ * The best configuration is the one with:
+ * cpu: full_system
+ * th: 64
+ * tw: 256
+ * threads: 6
+ * schedule: static,1
+ * time: 2566.211 ms
+ * 
+ * 
+ * We can observe that we can find both dynamic and static 
+ * scheduling under 3000ms. Differently from the blur2 kernel,
+ * Mandel kernel may be unbalanced due to some pixels that
+ * require more iterations to converge. 
+ * 
+ * 
+ */
+
+//###########################################################################
+// ######################## 2.1 Work to do #6 ###############################
+//###########################################################################
+// Memory Analysis for 1024.png
+/* 
+ * We are dealing with a 1024x1024 image, which means that the image has a size of 4MB.
+ * From our previous analysis, we know that when dealing with a workload of that size,
+ * we are out of the L1 cache and L2 cache, and we are using the RAM. Moreover, the 
+ * only access to memory is when we store the result of the computation. This means
+ * that we can directly look at the benchmark results of the write bandwidth of the
+ * memory for 4MB of data.
+ */
+
+
+// Operational Intensity (OI) Analysis
+/**
+ * Each pixel requires at least 4 + 8 FLOPs  and then, depending on the number of iterations,
+ * it performs 8 FLOPS per iteration. In the worst case, each pixel will perform 4 + 8*MAX_ITERATIONS
+ * FLOPs.
+ * At the end of the computation, we store the result of the computation, which requires only 1 store.
+ *  
+ */
+
+// The ARITHMETIC INTENSITY is ops/mem_acc = (4 + 8*AVG_ITERATIONS_PER_PIXEL)*1024*1024 / 1024*1024 = 4 + 8*AVG_ITERATIONS_PER_PIXEL
+
+// The OPERATIONAL INTENSITY is AI/size_of_data = (4 + 8*AVG_ITERATIONS_PER_PIXEL)*1024*1024 / 4 = 2 + 4*AVG_ITERATIONS_PER_PIXEL
+//(We are using floats, so the size of the data is 4 bytes.)
+
+// Roofline Model Analysis
+/**
+ * In order to define the Roofline Model, we need to know the peak performance of the CPU.
+ * For the Cortex-A57 we have: 
+ *  - freq: 2.04 GHz
+ *  - nops: 3 instructions per cycle x 4 simd width when using integers = 12 instructions per cycle
+ *  - number of cores: 4
+ * The peak performance is 2.04 GHz x 12 instructions per cycle x 4 cores = 97.92 Gops/s
+ * 
+ * The memory bandwidth, for the write operation when accessing 4MB, according to the previous analysis,
+ * is 39.2 GB/s.
+ * 
+ * From the Roofline model, we can compute the minimum between the peak performance and the memory 
+ * bandwidth*Operational Intensity, which is equal to 39.2 GB/s x (2 + 4*AVG_ITERATIONS_PER_PIXEL) = 78.4 Gops/s + 156.8*AVG_ITERATIONS_PER_PIXEL Gops/s.
+ * 
+ * So, since product bandwidth*Operational Intensity is always greater than the peak performance, for any value of 
+ * AVG_ITERATIONS_PER_PIXEL (at least 1), the kernel is compute bounds when using all the Cortex's cores. The maximum performance
+ * achievable will be of 97.92 Gops/s.
+ * 
+ * 
+ * For the Denver2, we have:
+ *  - freq: 2.04 GHz
+ *  - nops: 2 instructions per cycle x 4 simd width when using integers = 8 instructions per cycle
+ *  - number of cores: 2
+ * The peak performance is 2.04 GHz x 8 instructions per cycle x 2 cores = 32.64 Gops/s
+ * 
+ * The memory bandwidth for the Denver, according to the previous analysis, is 21.7 GB/s
+ * when using all the cores and accessing the RAM. 
+ * From the Roofline model, we can compute the minimum between the peak performance and the memory 
+ * bandwidth*Operational Intensity, which is equal to 21.7 GB/s x (2 + 4*AVG_ITERATIONS_PER_PIXEL) = 43.4 Gops/s + 86.8*AVG_ITERATIONS_PER_PIXEL Gops/s.
+ * 
+ * So, since product bandwidth*Operational Intensity is always greater than the peak performance, for any value of
+ * AVG_ITERATIONS_PER_PIXEL (at least 1), the kernel is compute bounds when using all the Denver's cores. The maximum
+ * performance achievable will be of 32.64 Gops/s.
+ */
 
 #include "easypap.h"
 
@@ -222,17 +327,19 @@ static void zoom (void)
 
 static unsigned compute_one_pixel (int i, int j)
 {
-  float cr = leftX + xstep * j;
-  float ci = topY - ystep * i;
+  float cr = leftX + xstep * j; // 2 floating-point operations
+  float ci = topY - ystep * i; // 2 floating-point operations
   float zr = 0.0, zi = 0.0;
 
   int iter;
 
   // Pour chaque pixel, on calcule les termes d'une suite, et on
   // s'arrête lorsque |Z| > 2 ou lorsqu'on atteint MAX_ITERATIONS
+  
+  // 8 FLOPS per iteration
   for (iter = 0; iter < MAX_ITERATIONS; iter++) {
-    float x2 = zr * zr;
-    float y2 = zi * zi;
+    float x2 = zr * zr; 
+    float y2 = zi * zi; 
 
     /* Stop iterations when |Z| > 2 */
     if (x2 + y2 > 4.0)
@@ -240,10 +347,10 @@ static unsigned compute_one_pixel (int i, int j)
 
     float twoxy = (float)2.0 * zr * zi;
     /* Z = Z^2 + C */
-    zr = x2 - y2 + cr;
-    zi = twoxy + ci;
+    zr = x2 - y2 + cr; 
+    zi = twoxy + ci; 
   }
 
-  return iteration_to_color (iter);
+  return iteration_to_color (iter); //
 }
 

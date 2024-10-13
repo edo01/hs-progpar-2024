@@ -5,9 +5,9 @@ import pandas as pd
 data = {
     "CPU": ["cortex", "cortex", "cortex", "cortex", "denver", "denver","full_system", "full_system"],
     "Threads": [1, 2, 3, 4, 1, 2, 5, 6],
-    "Time": [12.681, 6.950, 5.206, 5.155, 9.207, 5.058, 2.815, 2.760],
-	"Speedup": [1, 1.824, 2.435, 2.49, 1, 1.820 , 4.504, 4.594],
-	"Efficiency": [1, 0.912, 0.81, 0.622, 1, 0.91, 0.9, 0.750]
+    "Time": [12.772, 6.421, 4.584, 4.714, 9.533, 4.907, 3.185, 2.500],
+	"Speedup": [1, 1.99, 2.79, 2.71, 1, 1.94, 4.01, 5.10],
+	"Efficiency": [1, 0.995, 0.93, 0.677, 1, 0.97, 0.80, 0.85]
     
 }
 
@@ -48,7 +48,7 @@ plt.plot(full_system_data["Threads"], full_system_data["Efficiency"], marker='+'
 plt.axhline(y=1, color='black', linestyle=':', label="Desired efficiency for strong scalability")
 
 # Adding titles, labels, and legend
-plt.title("Mandel: Scalability Test with Tile: 1024*64 and Scheduling: Dynamic,3")
+plt.title("Mandel: Scalability Test with Tile: 64x256 and Scheduling: Static,1")
 plt.xlabel("Threads")
 plt.ylabel("Speedup and Efficiency")
 plt.legend()
