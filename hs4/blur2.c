@@ -75,13 +75,13 @@ BOARD ID: Q
  * 
  * Here thanks to the variable rotation and reduction, we can reduce the number of ops
  * and memory accesses thanks to the reuse of the data.
- * In this version, if we do not consider the boarders, we need to load
- * only 3 pixels and store 1. Also, since we are using a simplified blur, we need to perform
+ * In this version, if we do not consider the boarders, we need to perform 3 loads and store 1 
+ * for a total of 4 pixel accesses. Also, since we are using a simplified blur, we need to perform
  * only 3 additions, 1 subtraction and 1 shifts for the division by 8. Each of these operations
  * is performed on both the lower and higher part of the 16-bit components. 
- * Additionally, we need to perform 19 additional operations to prepare the registers for the reduction
+ * Additionally, we need to perform 21 additional operations to prepare the registers for the reduction
  * and the left-right pattern.
- * So, we have 29 ops in total and 4 memory accesses per each pixel. 
+ * So, we have 31 ops every 4 pixels and 4 memory accesses every 4 pixels. 
  * In total we have 1024 - 2 pixels at the borders = 1022 * 1022 pixels to process in the main loop.
  * 
  * In the prologue, we need to load 6 pixels and perform 2 additions for the reduction
@@ -92,12 +92,13 @@ BOARD ID: Q
  * So, we have to add to the count, for only the first 16 pixels of each line, 6 loads and 24 ops.
  * 
  * To sum up, we have:
- * - 1022 * 1022 * 29 ops + 1022 * 16 * 24 ops = 30.682.484 ops
- * - 1022 * 1022 * 4 memory accesses + 1022 * 16 * 6 memory accesses = 4.276.048 memory accesses
+ * - 1022 * 1022 * 29 ops + 1022 * 16 * 24 ops = 30.682.484 ops/every 4 pixels = 7.670.621 ops/pixel
+ * - 1022 * 1022 * 4 memory accesses + 1022 * 16 * 6 memory accesses = 4.276.048 memory accesses/every 4 pixels = 1.069.012 memory accesses/pixel
+ * 
+ * 
+ * The ARITHMETIC INTENSITY is ops/mem_acc = 7.670.621 / 1.069.012 = 7.17
  * 
  */
-
-// The ARITHMETIC INTENSITY is ops/mem_acc = 7.17 
 
 // The OPERATIONAL INTENSITY is AI/size_of_data = 7.17 / 4 = 1.793 
 //(We are using integers, so the size of the data is 4 bytes.)
