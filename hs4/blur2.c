@@ -82,7 +82,6 @@ BOARD ID: Q
  * Additionally, we need to perform 21 additional operations to prepare the registers for the reduction
  * and the left-right pattern.
  * So, we have 31 ops every 4 pixels and 4 memory accesses every 4 pixels. 
- * In total we have 1024 - 2 pixels at the borders = 1022 * 1022 pixels to process in the main loop.
  * 
  * In the prologue, we need to load 6 pixels and perform 2 additions for the reduction
  * of the first column and 2 for the reduction of the second column. Only in the second column,
@@ -92,16 +91,15 @@ BOARD ID: Q
  * So, we have to add to the count, for only the first 16 pixels of each line, 6 loads and 24 ops.
  * 
  * To sum up, we have:
- * - 1022 * 1022 * 29 ops + 1022 * 16 * 24 ops = 30.682.484 ops/every 4 pixels = 7.670.621 ops/pixel
- * - 1022 * 1022 * 4 memory accesses + 1022 * 16 * 6 memory accesses = 4.276.048 memory accesses/every 4 pixels = 1.069.012 memory accesses/pixel
+ * - 31 ops every 4 pixels * 1022 * 1018 + 24 ops every 4 * 1024 = 32.276.852 ops/every 4 pixels = 8.069.213 ops/pixel
+ * - 4 memory accesses * 1022 * 1018 + 1022 * 4 * 6 memory accesses = 4.169.012 memory accesses/every 4 pixels = 1.069.012 memory accesses/pixel
  * 
- * 
- * The ARITHMETIC INTENSITY is ops/mem_acc = 7.670.621 / 1.069.012 = 7.17
+ * The ARITHMETIC INTENSITY is ops/mem_acc = 8.069.213 / 1.069.012 = 7.54
  * 
  */
 
-// The OPERATIONAL INTENSITY is AI/size_of_data = 7.17 / 4 = 1.793 
-//(We are using integers, so the size of the data is 4 bytes.)
+// The OPERATIONAL INTENSITY is AI/size_of_data = 7.54/16 = 0.4715 
+//(We are using integers, so each register is 16 bytes.)
 
 // Roofline Model Analysis
 /**
@@ -115,10 +113,10 @@ BOARD ID: Q
  * The memory bandwidth for the Cortex-A57, according to the previous analysis, is 9.92 GB/s
  * when using all the cores and accessing the RAM. 
  * From the Roofline model, we can compute the minimum between the peak performance and the memory 
- * bandwidth*Operational Intensity, which is equal to 9.92 GB/s x 7.17 = 17.795 Gops/s. 
+ * bandwidth*Operational Intensity, which is equal to 9.92 GB/s x 0.4715 = 4.68 Gops/s. 
  * 
  * So, the kernel is memory-bound as the operational intensity is lower than the memory bandwidth
- * when using all the Cortex's cores. The maximum performance achievable will be of 17.795 Gops/s.
+ * when using all the Cortex's cores. The maximum performance achievable will be of 4.68 Gops/s.
  * 
  * 
  * For the Denver2, we have:
@@ -130,11 +128,12 @@ BOARD ID: Q
  * The memory bandwidth for the Denver, according to the previous analysis, is 20.7 GB/s
  * when using all the cores and accessing the RAM. 
  * From the Roofline model, we can compute the minimum between the peak performance and the memory 
- * bandwidth*Operational Intensity, which is equal to 20.7 GB/s x 7.17 = 148 Gops/s. 
+ * bandwidth*Operational Intensity, which is equal to 20.7 GB/s x 0.4715 = 9.76 Gops/s.
  * 
- * So, the kernel, when using all the Denver's cores, is compute-bound as the operational intensity
- * is higher than the memory bandwidth. The maximum performance achievable will be of 32.64 Gops/s.
- */
+ * So, the kernel, when using all the Denver's cores, is memory-bound as the operational intensity
+ * is lower than the memory bandwidth, and the maximum performance achievable will be of 9.76 Gops/s.
+ * 
+ * */
 
 
 #include "easypap.h"
