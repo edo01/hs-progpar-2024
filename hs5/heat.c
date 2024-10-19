@@ -63,10 +63,24 @@ void heat_init()
       tgrid0[(j + shift) * DIM + i + shift] = 1.f;
 }
 
-///////////////////////////// Sequential version (tiled)
-// Suggested cmdline(s):
-// ./run -k heat -v seq -si
-//
+/** point 1.2
+ * // O1
+ * D2: 82781.298  ms
+ * CA57: 38132.908  ms
+ * 
+ * // O2
+ * D2: 28449.044  ms
+ * CA57: 27993.255  ms
+ *
+ * // O3
+ * D2: 19039.446  ms
+ * CA57: 24118.710  ms
+ * 
+ * We run the default version of the heat kernel on the D2 and CA57 architectures,
+ * using different optimization level. As expected, we can see that as we
+ * increase the optimization level, the performance of the kernel increases.
+ * 
+ */
 int heat_do_tile_default(int x, int y, int width, int height)
 {
   float c, l, r, b, t;
@@ -84,11 +98,6 @@ int heat_do_tile_default(int x, int y, int width, int height)
   return 0;
 }
 
-///////////////////////////// Sequential version (tiled)
-// Suggested cmdline(s):
-// ./run -k heat -v seq -r 1000
-// ./run -k heat -v seq -i 10000 --no-display
-//
 unsigned heat_compute_seq(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
@@ -149,8 +158,23 @@ int heat_do_tile_bv2(int x, int y, int width, int height)
   return 0;
 }
 
-// // ./run -k heat -v seq_bv2 -wt bv2 -r 1000
-// // ./run -k heat -v seq_bv2 -wt bv2 -i 10000 --no-display
+/** point 2.1.5
+ * // O3
+ * D2:   20905.157 ms
+ * CA57: 21757.951 ms
+ * 
+ * In this new version of the kernel we modify the border handling in order 
+ * to avoid the ternary operator inside the loop. In order to do so,
+ * we add a border of size 1 to the grid, copyting the values of the
+ * opposite border to the new border. This way, we can compute the 
+ * tile without having to check if we are at the border of the grid.
+ * 
+ * We can observe a gain of almost 3 seconds on the Cortex-A57 architecture,
+ * while on the Denver2 architecture the time is not significantly different.
+ * This is in agreement with the discussion done in the first hands-on session,
+ * in which we saw that the Cortex-A57 architecture achieve a more significant
+ * speedup when we perform these kind of optimizations.
+ */
 unsigned heat_compute_seq_bv2(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
@@ -204,8 +228,20 @@ void heat_init_mpi_v0(void)
               mpi_y + mpi_h - 1);
 }
 
-// ./run -k heat -v mpi_v0 --mpirun "-np 2" -wt bv2 -r 1000 --debug-flags M
-// ./run -k heat -v mpi_v0 --mpirun "-np 8" -wt bv2 -i 10000 --no-display
+
+/** point 2.2.5
+ * // O3
+ * Running the first version of the MPI kernel, we obtain a significant
+ * speedup on both the Denver2 and Cortex-A57 architectures, respectivelly
+ * x1.55 and x1.975. This is expected, as we are now using two processes
+ * to compute the heat kernel, and in a theoric scenario we would obtain
+ * a speedup of 2.
+ * 
+ * D2: 13442.008  ms
+ * CA57: 11011.552  ms
+ */
+// For Denver2 ./run -k heat --no-display -r 500 -i 5000 --mpirun "--cpu-set 4,5 --bind-to core --report-bindings -n 2" -si -v mpi_v0 -wt bv2
+// For CortexA57 ./run -k heat --no-display -r 500 -i 5000 --mpirun "--cpu-set 0,1 --bind-to core --report-bindings -n 2" -si -v mpi_v0 -wt bv2 
 unsigned heat_compute_mpi_v0(unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++)
@@ -258,7 +294,7 @@ unsigned heat_compute_mpi_v0(unsigned nb_iter)
     for (int j = 0; j < (int)DIM; j++)
       cur_img(i, j) = heat_to_rgb_legacy(tgrid0[(i + 1) * (DIM + 2) + (j + 1)]);
 
-  // point 4 -- CHECK ME
+  // point 4
   MPI_Gather(&image[mpi_y * (DIM)], mpi_h * DIM, MPI_UNSIGNED, image, mpi_h * DIM, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
   return 0;
@@ -274,6 +310,38 @@ void heat_init_mpi_v1(void)
   heat_init_mpi_v0();
 }
 
+/** point 2.3.3
+ * 
+ * In this version of the MPI kernel, we generalize to 2^n processes the
+ * computation of the heat kernel. As the number of processes increases,
+ * the size of the tile that each process has to compute decreases, but we
+ * increase the number of communications between processes. In fact, every process 
+ * has to send and receive the first and last line of the tile to the previous and
+ * subsequent process. This increases the number of communications, but since 
+ * we are using processes in the same node, the latency of the communication is
+ * very low, and the performance of the kernel increases.
+ * 
+ * // O3
+ *  
+ * cpu,process,time
+ * cortex,1,21234.540
+ * cortex,2,10826.735
+ * cortex,4,5694.706
+ * denver,1,23449.509
+ * denver,2,12391.556
+ * full_system,4,6425.335
+ * full_system,8,7338.345
+ * 
+ * Please note that when running the kernel on the full system using 4 processes,
+ * the performance is not as good as when running the kernel on the Cortex-A57
+ * architecture using 4 processes. This is due to the fact that the communication
+ * between the different processors is slower than the communication between the different
+ * processes in the same processor. Moreover, when using 8 processes on the full system,
+ * we can see that the performance is worse than when using 4 processes. This is due
+ * to the fact that the architecture supports at most 6 processes with no overload 
+ * on the cores, and when we use 8 processes, the kernel has to share the cores with
+ * other processes.
+ */
 unsigned heat_compute_mpi_v1(unsigned nb_iter)
 {
   int dest, source;
@@ -327,10 +395,34 @@ void heat_init_mpi_v2(void)
   heat_init_mpi_v0();
 }
 
+/** point 3.4.2
+ * Non-blocking communication allows the process to continue its computation
+ * while the communication is being performed. This way, we can overlap the
+ * computation and the communication, and increase the performance of the kernel.
+ * In this version of the kernel, the computation of the tile cannot be overlapped
+ * with the communication, as we need the values of the first and last line of the
+ * tile to do the computation. So we don't expect a significant speedup when using
+ * non-blocking communication.
+ * 
+ * cpu,process,time
+ * cortex,1,21272.572
+ * cortex,2,11000.392
+ * cortex,4,5639.650
+ * denver,1,23492.910
+ * denver,2,12394.926
+ * full_system,4,6395.091
+ * full_system,8,7340.817
+ * 
+ * As we can see, the time is very similar to the one obtained using blocking
+ * communication. Moreover, since we are using one node, the latency of the
+ * communication is very low, and the performance of the kernel is not significantly
+ * affected by the use of non-blocking communication.
+ */
+
 unsigned heat_compute_mpi_v2(unsigned nb_iter)
 {
   int dest, source;
-  MPI_Request request_send1, request_send2, request_recv1, request_recv2;
+  MPI_Request requests[4];
 
   for (unsigned it = 1; it <= nb_iter; it++)
   {
@@ -353,23 +445,20 @@ unsigned heat_compute_mpi_v2(unsigned nb_iter)
     // sending the last line of the process to the subsequent process 
     // and receiving the last line of the previous process
     MPI_Isend(&tgrid0[(mpi_y + mpi_h) * (DIM + 2) + 1], DIM, MPI_FLOAT, dest, 0, 
-              MPI_COMM_WORLD, &request_send1);
+              MPI_COMM_WORLD, &requests[0]);
     MPI_Irecv(&tgrid0[(mpi_y) * (DIM + 2) + 1], DIM, MPI_FLOAT, source , 0,
-                  MPI_COMM_WORLD, &request_recv1);
+                  MPI_COMM_WORLD, &requests[1]);
 
     dest = (mpi_rank == 0) ? mpi_size - 1 : (mpi_rank - 1);
     source = (mpi_rank == mpi_size - 1) ? 0 : (mpi_rank + 1);
     // sending the first line of the process to the previous process
     // and receiving the first line of the subsequent process
     MPI_Isend(&tgrid0[(mpi_y + 1) * (DIM + 2) + 1], DIM, MPI_FLOAT, dest, 0,
-              MPI_COMM_WORLD, &request_send2);
+              MPI_COMM_WORLD, &requests[2]);
     MPI_Irecv(&tgrid0[(mpi_y + 1 + mpi_h) * (DIM + 2) + 1], DIM, MPI_FLOAT, source, 0,
-              MPI_COMM_WORLD, &request_recv2);
+              MPI_COMM_WORLD, &requests[3]);
 
-    MPI_Wait(&request_send1, MPI_STATUS_IGNORE);
-    MPI_Wait(&request_recv1, MPI_STATUS_IGNORE);
-    MPI_Wait(&request_send2, MPI_STATUS_IGNORE);
-    MPI_Wait(&request_recv2, MPI_STATUS_IGNORE);
+    MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
   }
 
   for (int i = mpi_y; i < mpi_y + mpi_h; i++)
