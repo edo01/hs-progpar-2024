@@ -36,6 +36,7 @@
 #include "motion/wrapper/Sigma_delta.hpp"
 #include "motion/wrapper/Morpho.hpp"
 #include "motion/wrapper/CCL.hpp"
+#include "motion/wrapper/Features_CCA.hpp"
 
 
 int main(int argc, char** argv) {
@@ -404,9 +405,9 @@ int main(int argc, char** argv) {
             //sigma_delta_compute(sd_data0, (const uint8_t**)IG0, IB0, i0, i1, j0, j1, p_sd_n);
 
             Sigma_delta sigma_delta_mod(sd_data0, i0, i1, j0, j1, p_sd_n);
-            sigma_delta_mod["sigma_delta_compute::in_IG"].bind(IG0[0]);
-            sigma_delta_mod["sigma_delta_compute::out_IB"].bind(IB0[0]);
-            sigma_delta_mod("sigma_delta_compute").exec();
+            sigma_delta_mod["compute::in_IG"].bind(IG0[0]);
+            sigma_delta_mod["compute::out_IB"].bind(IB0[0]);
+            sigma_delta_mod("compute").exec();
             
             TIME_POINT(sd_e);
             TIME_ACC(sd_a, sd_b, sd_e);
@@ -430,10 +431,10 @@ int main(int argc, char** argv) {
             
             uint32_t n_RoIs_tmp0;
             CCL ccl_mod(ccl_data0);
-            ccl_mod["compute::in_IB"].bind(IB0[0]);
-            ccl_mod["compute::out_L1"].bind(L10[0]);
-            ccl_mod["compute::out_n_RoIs"].bind(&n_RoIs_tmp0);
-            ccl_mod("compute").exec();
+            ccl_mod["apply::in_IB"].bind(IB0[0]);
+            ccl_mod["apply::out_L1"].bind(L10[0]);
+            ccl_mod["apply::out_n_RoIs"].bind(&n_RoIs_tmp0);
+            ccl_mod("apply").exec();
             
             assert(n_RoIs_tmp0 <= (uint32_t)def_p_cca_roi_max1);
             TIME_POINT(ccl_e);
@@ -441,7 +442,13 @@ int main(int argc, char** argv) {
 
             // step 4: connected components analysis (CCA): from image of labels to "regions of interest" (RoIs)
             TIME_POINT(cca_b);
-            features_extract((const uint32_t**)L10, i0, i1, j0, j1, RoIs_tmp0, n_RoIs_tmp0);
+            //features_extract((const uint32_t**)L10, i0, i1, j0, j1, RoIs_tmp0, n_RoIs_tmp0);
+
+            Features_CCA features_mod(i0, i1, j0, j1, n_RoIs_tmp0);
+            features_mod["extract::in_L1"].bind(L10[0]);
+            features_mod["extract::out_RoIs"].bind((uint8_t*)RoIs_tmp0);
+            features_mod("extract").exec();
+
             TIME_POINT(cca_e);
             TIME_ACC(cca_a, cca_b, cca_e);
 
@@ -465,9 +472,9 @@ int main(int argc, char** argv) {
         //sigma_delta_compute(sd_data1, (const uint8_t**)IG1, IB1, i0, i1, j0, j1, p_sd_n);
         
         Sigma_delta sigma_delta_mod(sd_data1, i0, i1, j0, j1, p_sd_n);
-        sigma_delta_mod["sigma_delta_compute::in_IG"].bind(IG1[0]);
-        sigma_delta_mod["sigma_delta_compute::out_IB"].bind(IB1[0]);
-        sigma_delta_mod("sigma_delta_compute").exec();
+        sigma_delta_mod["compute::in_IG"].bind(IG1[0]);
+        sigma_delta_mod["compute::out_IB"].bind(IB1[0]);
+        sigma_delta_mod("compute").exec();
           
         TIME_POINT(sd_e);
         TIME_ACC(sd_a, sd_b, sd_e);
@@ -490,10 +497,10 @@ int main(int argc, char** argv) {
         //const uint32_t n_RoIs_tmp1 = CCL_LSL_apply(ccl_data1, (const uint8_t**)IB1, L11, 0);
         uint32_t n_RoIs_tmp1;
         CCL ccl_mod(ccl_data1);
-        ccl_mod["compute::in_IB"].bind(IB1[0]);
-        ccl_mod["compute::out_L1"].bind(L11[0]);
-        ccl_mod["compute::out_n_RoIs"].bind(&n_RoIs_tmp1);
-        ccl_mod("compute").exec();
+        ccl_mod["apply::in_IB"].bind(IB1[0]);
+        ccl_mod["apply::out_L1"].bind(L11[0]);
+        ccl_mod["apply::out_n_RoIs"].bind(&n_RoIs_tmp1);
+        ccl_mod("apply").exec();
         
         assert(n_RoIs_tmp1 <= (uint32_t)def_p_cca_roi_max1);
         TIME_POINT(ccl_e);
@@ -501,7 +508,13 @@ int main(int argc, char** argv) {
 
         // step 4: connected components analysis (CCA): from image of labels to "regions of interest" (RoIs)
         TIME_POINT(cca_b);
-        features_extract((const uint32_t**)L11, i0, i1, j0, j1, RoIs_tmp1, n_RoIs_tmp1);
+        //features_extract((const uint32_t**)L11, i0, i1, j0, j1, RoIs_tmp1, n_RoIs_tmp1);
+        
+        Features_CCA features_mod(i0, i1, j0, j1, n_RoIs_tmp1);
+        features_mod["extract::in_L1"].bind(L11[0]);
+        features_mod["extract::out_RoIs"].bind((uint8_t*)RoIs_tmp1);
+        features_mod("extract").exec();
+                
         TIME_POINT(cca_e);
         TIME_ACC(cca_a, cca_b, cca_e);
 

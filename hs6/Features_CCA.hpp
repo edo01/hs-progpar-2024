@@ -1,7 +1,8 @@
 #ifndef FEATURES_CCA_HPP
 #define FEATURES_CCA_HPP
 
-#include "spu/module/stateful.hpp"   
+#include <streampu.hpp>
+#include "motion/tools.h" 
 #include "motion/features.h"        
 
 class Features_CCA : public spu::module::Stateful {
@@ -12,13 +13,13 @@ public:
      * @param i1 Ending y-coordinate of the image
      * @param j0 Starting x-coordinate of the image
      * @param j1 Ending x-coordinate of the image
-     * @param max_rois Maximum number of regions of interest 
+     * @param n_RoIs Number of connected components
      */
-    Features_CCA(int i0, int i1, int j0, int j1, int max_rois);
+    Features_CCA(int i0, int i1, int j0, int j1, size_t n_RoIs);
 
 private:
     int i0, i1, j0, j1; 
-    int max_rois;  
+    size_t n_RoIs;  
 };
 
 #endif 
