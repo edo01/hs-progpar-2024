@@ -14,11 +14,11 @@
  * @param j1 Ending x-coordinate of the image
  */
 class Morpho : public spu::module::Stateful {
+public:
+    Morpho(morpho_data_t* morpho_data, int i0, int i1, int j0, int j1);
 private:
     morpho_data_t* morpho_data;  
     int i0, i1, j0, j1;  
-public:
-    Morpho(morpho_data_t* morpho_data, int i0, int i1, int j0, int j1);
-};
+};motion-sesi/include/cpp/motion/wrapper/Sigma_delta.hpp
 
 #endif 

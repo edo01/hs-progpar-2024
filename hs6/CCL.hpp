@@ -1,7 +1,8 @@
 #ifndef CCL_HPP
 #define CCL_HPP
 
-#include "spu/module/stateful.hpp"   
+#include <streampu.hpp>
+#include "motion/tools.h" 
 #include "motion/CCL.h"              
 
 class CCL : public spu::module::Stateful {
