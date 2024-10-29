@@ -401,23 +401,24 @@ int main(int argc, char** argv) {
         if (n_processed_frames > 0) {
             // step 1: motion detection (per pixel) with Sigma-Delta algorithm
             TIME_POINT(sd_b);
-            
-            Sigma_delta sigma_delta_mod(sd_data0, i0, i1, j0, j1, p_sd_n);
-            sigma_delta_mod["compute::in_IG"].bind(IG0);
-            sigma_delta_mod["compute::out_IB"].bind(IB0);
-            sigma_delta_mod("compute").exec();
+            //sigma_delta_compute(sd_data0, (const uint8_t**)IG0, IB0, i0, i1, j0, j1, p_sd_n);
 
+            Sigma_delta sigma_delta_mod(sd_data0, i0, i1, j0, j1, p_sd_n);
+            sigma_delta_mod["sigma_delta_compute::in_IG"].bind(IG0[0]);
+            sigma_delta_mod["sigma_delta_compute::out_IB"].bind(IB0[0]);
+            sigma_delta_mod("sigma_delta_compute").exec();
+            
             TIME_POINT(sd_e);
             TIME_ACC(sd_a, sd_b, sd_e);
 
             // step 2: mathematical morphology
             TIME_POINT(mrp_b);
-            //morpho_compute_opening3(morpho_data0, (const uint8_t**)IB0, IB0, i0, i1, j0, j1);
-            //morpho_compute_closing3(morpho_data0, (const uint8_t**)IB0, IB0, i0, i1, j0, j1);
+            /*morpho_compute_opening3(morpho_data0, (const uint8_t**)IB0, IB0, i0, i1, j0, j1);
+            morpho_compute_closing3(morpho_data0, (const uint8_t**)IB0, IB0, i0, i1, j0, j1);*/
             
             Morpho morpho_mod(morpho_data0, i0, i1, j0, j1);
-            morpho_mod["compute::in_IB"].bind(IB0);
-            morpho_mod["compute::out_IB"].bind(IB0);
+            morpho_mod["compute::in_IB"].bind(IB0[0]);
+            morpho_mod["compute::out_IB"].bind(IB0[0]);
             morpho_mod("compute").exec();
             
             TIME_POINT(mrp_e);
@@ -426,11 +427,11 @@ int main(int argc, char** argv) {
             // step 3: connected components labeling (CCL)
             TIME_POINT(ccl_b);
             //const uint32_t n_RoIs_tmp0 = CCL_LSL_apply(ccl_data0, (const uint8_t**)IB0, L10, 0);
+            
             uint32_t n_RoIs_tmp0;
-
             CCL ccl_mod(ccl_data0);
-            ccl_mod["compute::in_IB"].bind(IB0);
-            ccl_mod["compute::out_L1"].bind(L10);
+            ccl_mod["compute::in_IB"].bind(IB0[0]);
+            ccl_mod["compute::out_L1"].bind(L10[0]);
             ccl_mod["compute::out_n_RoIs"].bind(&n_RoIs_tmp0);
             ccl_mod("compute").exec();
             
@@ -461,20 +462,39 @@ int main(int argc, char** argv) {
 
         // step 1: motion detection (per pixel) with Sigma-Delta algorithm
         TIME_POINT(sd_b);
-        sigma_delta_compute(sd_data1, (const uint8_t**)IG1, IB1, i0, i1, j0, j1, p_sd_n);
+        //sigma_delta_compute(sd_data1, (const uint8_t**)IG1, IB1, i0, i1, j0, j1, p_sd_n);
+        
+        Sigma_delta sigma_delta_mod(sd_data1, i0, i1, j0, j1, p_sd_n);
+        sigma_delta_mod["sigma_delta_compute::in_IG"].bind(IG1[0]);
+        sigma_delta_mod["sigma_delta_compute::out_IB"].bind(IB1[0]);
+        sigma_delta_mod("sigma_delta_compute").exec();
+          
         TIME_POINT(sd_e);
         TIME_ACC(sd_a, sd_b, sd_e);
 
         // step 2: mathematical morphology
         TIME_POINT(mrp_b);
-        morpho_compute_opening3(morpho_data1, (const uint8_t**)IB1, IB1, i0, i1, j0, j1);
-        morpho_compute_closing3(morpho_data1, (const uint8_t**)IB1, IB1, i0, i1, j0, j1);
+        /*morpho_compute_opening3(morpho_data1, (const uint8_t**)IB1, IB1, i0, i1, j0, j1);
+        morpho_compute_closing3(morpho_data1, (const uint8_t**)IB1, IB1, i0, i1, j0, j1);*/
+
+        Morpho morpho_mod(morpho_data1, i0, i1, j0, j1);
+        morpho_mod["compute::in_IB"].bind(IB1[0]);
+        morpho_mod["compute::out_IB"].bind(IB1[0]);
+        morpho_mod("compute").exec();
+
         TIME_POINT(mrp_e);
         TIME_ACC(mrp_a, mrp_b, mrp_e);
 
         // step 3: connected components labeling (CCL)
         TIME_POINT(ccl_b);
-        const uint32_t n_RoIs_tmp1 = CCL_LSL_apply(ccl_data1, (const uint8_t**)IB1, L11, 0);
+        //const uint32_t n_RoIs_tmp1 = CCL_LSL_apply(ccl_data1, (const uint8_t**)IB1, L11, 0);
+        uint32_t n_RoIs_tmp1;
+        CCL ccl_mod(ccl_data1);
+        ccl_mod["compute::in_IB"].bind(IB1[0]);
+        ccl_mod["compute::out_L1"].bind(L11[0]);
+        ccl_mod["compute::out_n_RoIs"].bind(&n_RoIs_tmp1);
+        ccl_mod("compute").exec();
+        
         assert(n_RoIs_tmp1 <= (uint32_t)def_p_cca_roi_max1);
         TIME_POINT(ccl_e);
         TIME_ACC(ccl_a, ccl_b, ccl_e);

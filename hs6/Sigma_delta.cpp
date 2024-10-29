@@ -16,12 +16,12 @@ Sigma_delta::Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0, in
     this->set_name(name);
     this->set_short_name(name);
 
-    auto &t = this->create_task("Sigma_delta_compute");
+    auto &t = this->create_task("sigma_delta_compute");
 
     // Input socket
-    size_t si_data_IG = create_2d_sck_in<uint8_t>(t, "in_IG", (i1-i0), (j1-j0));
+    size_t si_data_IG = create_2d_sck_in<uint8_t>(t, "in_IG", (i1-i0)+1, (j1-j0)+1);
     // Output socket
-    size_t so_data_IB = create_2d_sck_out<uint8_t>(t, "out_IB", (i1-i0), (j1-j0));
+    size_t so_data_IB = create_2d_sck_out<uint8_t>(t, "out_IB", (i1-i0)+1, (j1-j0)+1);
 
     create_codelet(t, 
         [si_data_IG, so_data_IB] 
@@ -31,7 +31,7 @@ Sigma_delta::Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0, in
             
             const uint8_t** IG = tsk[si_data_IG].get_2d_dataptr<const uint8_t>();
             uint8_t** IB = tsk[so_data_IB].get_2d_dataptr<uint8_t>();
-
+            
             sigma_delta_compute(sigma.sd_data, IG, IB, sigma.i0, sigma.i1, sigma.j0, sigma.j1, sigma.p_sd_n);
             return runtime::status_t::SUCCESS;
         }
