@@ -2,8 +2,8 @@
 #define MORPHO_HPP
 
 #include <streampu.hpp>
-#include "motion/morpho.h"           
 #include "motion/tools.h"
+#include "motion/morpho.h"           
 
 /**
  * Constructor to initialize the Morpho module
@@ -19,6 +19,6 @@ public:
 private:
     morpho_data_t* morpho_data;  
     int i0, i1, j0, j1;  
-};motion-sesi/include/cpp/motion/wrapper/Sigma_delta.hpp
+};
 
 #endif 

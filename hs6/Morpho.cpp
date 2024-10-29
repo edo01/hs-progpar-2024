@@ -9,7 +9,7 @@ Morpho::Morpho(morpho_data_t* morpho_data, int i0, int i1, int j0, int j1)
     this->set_name(name);
     this->set_short_name(name);
 
-    auto &t = this->create_task("Morpho_compute");
+    auto &t = this->create_task("compute");
 
     // input socket
     size_t si_data_IB = create_2d_sck_in<uint8_t>(t, "in_IB", (i1 - i0), (j1 - j0)); 
