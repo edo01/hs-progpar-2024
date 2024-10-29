@@ -1,8 +1,9 @@
 #ifndef KNN_HPP
 #define KNN_HPP
 
-#include "spu/module/stateful.hpp"   
-#include "motion/kNN.h"              
+#include <streampu.hpp>
+#include "motion/tools.h" 
+#include "motion/kNN.h"   
 
 class KNN : public spu::module::Stateful {
 public:
@@ -12,11 +13,15 @@ public:
      * @param knn_d Maximum distance for matching
      * @param knn_s Minimum surface ratio for matching
      */
-    KNN(int knn_k, int knn_d, float knn_s);
+    KNN(kNN_data_t* knn_data, const size_t n_RoIs0, const size_t n_RoIs1,
+            const int knn_k, const uint32_t knn_d, const float knn_s);
 
 private:
-    int knn_k, knn_d;
-    float knn_s;
+    kNN_data_t* knn_data;
+    const size_t n_RoIs0, n_RoIs1;
+    const int knn_k;
+    const uint32_t knn_d;
+    const float knn_s;
 };
 
 #endif 

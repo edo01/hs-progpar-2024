@@ -16,12 +16,12 @@ Sigma_delta::Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0, in
     this->set_name(name);
     this->set_short_name(name);
 
-    auto &t = this->create_task("sigma_delta_compute");
+    auto &t = this->create_task("compute");
 
     // Input socket
-    size_t si_data_IG = create_2d_sck_in<uint8_t>(t, "in_IG", (i1-i0)+1, (j1-j0)+1);
+    size_t si_data_IG = this->template create_2d_sck_in<uint8_t>(t, "in_IG", (i1-i0)+1, (j1-j0)+1);
     // Output socket
-    size_t so_data_IB = create_2d_sck_out<uint8_t>(t, "out_IB", (i1-i0)+1, (j1-j0)+1);
+    size_t so_data_IB = this->template create_2d_sck_out<uint8_t>(t, "out_IB", (i1-i0)+1, (j1-j0)+1);
 
     create_codelet(t, 
         [si_data_IG, so_data_IB] 

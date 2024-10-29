@@ -27,7 +27,6 @@ Features_CCA::Features_CCA(int i0, int i1, int j0, int j1, size_t n_RoIs)
 
             RoI_t* RoIs_out = (RoI_t*)tsk[so_RoIs].get_dataptr<uint8_t>();
             
-            // Apply the opening and closing morphological operations
             features_extract(L1_in, features_CCA.i0, features_CCA.i1, features_CCA.j0, features_CCA.j1, RoIs_out, features_CCA.n_RoIs);
 
             return runtime::status_t::SUCCESS;

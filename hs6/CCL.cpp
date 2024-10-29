@@ -9,13 +9,13 @@ CCL::CCL(CCL_data_t* ccl_data)
     this->set_name(name);
     this->set_short_name(name);
 
-    auto &t = this->create_task("compute");
+    auto &t = this->create_task("apply");
 
     // input socket
-    size_t si_data_IB = create_2d_sck_in<uint8_t>(t, "in_IB", (ccl_data->i1 - ccl_data->i0) + 1, (ccl_data->j1 - ccl_data->j0) + 1); 
+    size_t si_data_IB = this->template create_2d_sck_in<uint8_t>(t, "in_IB", (ccl_data->i1 - ccl_data->i0) + 1, (ccl_data->j1 - ccl_data->j0) + 1); 
     // output socket
-    size_t so_data_L1 = create_2d_sck_out<uint32_t>(t, "out_L1", (ccl_data->i1 - ccl_data->i0) + 1, (ccl_data->j1 - ccl_data->j0) + 1); 
-    size_t so_data_n_RoIs = create_sck_out<uint32_t>(t, "out_n_RoIs", 1);
+    size_t so_data_L1 = this->template create_2d_sck_out<uint32_t>(t, "out_L1", (ccl_data->i1 - ccl_data->i0) + 1, (ccl_data->j1 - ccl_data->j0) + 1); 
+    size_t so_data_n_RoIs = this->template create_sck_out<uint32_t>(t, "out_n_RoIs", 1);
 
     create_codelet(t, 
         [si_data_IB, so_data_L1, so_data_n_RoIs] 
