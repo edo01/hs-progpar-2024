@@ -4,9 +4,8 @@ using namespace spu;
 // n_RoIs0 = features_filter_surface((const uint32_t**)L10, L20, i0, i1, j0, j1, RoIs_tmp0, 
 //                                                 n_RoIs_tmp0, p_flt_s_min, p_flt_s_max);
 
-Features_filter::Features_filter(const int i0, const int i1, const int j0, const int j1,
-                const int n_RoIs_tmp, const int s_min, const int s_max,
-                const int p_cca_roi_max2)
+Features_filter::Features_filter(int i0, int i1, int j0, int j1,
+                    int n_RoIs_tmp,  int s_min,  int s_max, int p_cca_roi_max2)
     : spu::module::Stateful(), i0(i0), i1(i1), j0(j0), j1(j1), n_RoIs_tmp(n_RoIs_tmp), s_min(s_min),
      s_max(s_max), p_cca_roi_max2(p_cca_roi_max2)
 {

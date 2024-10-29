@@ -18,15 +18,15 @@ public:
      * @param s_max Maximum surface area for RoIs
      * @param p_cca_roi_max2 Maximum number of RoIs
      */
-    Features_filter(const int i0, const int i1, const int j0, const int j1,
-                const int n_RoIs_tmp, const int s_min, const int s_max,
-                const int p_cca_roi_max2);
+    Features_filter( int i0,  int i1, int j0, int j1,
+                int n_RoIs_tmp, int s_min, int s_max,
+                int p_cca_roi_max2);
 
 private:
-    const int i0, i1, j0, j1; 
-    const size_t n_RoIs_tmp; 
-    const int s_min, s_max;  
-    const int p_cca_roi_max2;
+    int i0, i1, j0, j1; 
+    size_t n_RoIs_tmp; 
+    int s_min, s_max;  
+    int p_cca_roi_max2;
 
 };
 

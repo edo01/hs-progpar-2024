@@ -15,7 +15,8 @@ public:
      * @param j1 Ending x-coordinate of the image
      * @param p_sd_n Value of the N parameter in the Sigma-Delta algorithm 
      */
-    Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0, int j1, int p_sd_n);
+    Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0,
+                    int j1, int p_sd_n);
 private:
     int i0, i1, j0, j1, p_sd_n;
     sigma_delta_data_t* sd_data;

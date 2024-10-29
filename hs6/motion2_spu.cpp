@@ -39,6 +39,7 @@
 #include "motion/wrapper/Features_CCA.hpp"
 #include "motion/wrapper/Features_filter.hpp"
 #include "motion/wrapper/KNN.hpp"
+#include "motion/wrapper/Tracking.hpp"
 
 
 int main(int argc, char** argv) {
@@ -553,8 +554,12 @@ int main(int argc, char** argv) {
 
         // step 7: temporal tracking
         TIME_POINT(trk_b);
-        tracking_perform(tracking_data, RoIs1, n_RoIs1, cur_fra, p_trk_ext_d, p_trk_obj_min,
-                         p_trk_roi_path != NULL || visu, p_trk_ext_o, p_knn_s);
+        //tracking_perform(tracking_data, RoIs1, n_RoIs1, cur_fra, p_trk_ext_d, p_trk_obj_min,
+        //                 p_trk_roi_path != NULL || visu, p_trk_ext_o, p_knn_s);
+        Tracking tracking_mod(tracking_data, n_RoIs1, cur_fra, p_trk_ext_d, p_trk_obj_min,
+                 p_trk_roi_path != NULL || visu, p_trk_ext_o, p_knn_s);
+        tracking_mod["perform::in_RoIs"].bind((uint8_t*)RoIs1);
+        tracking_mod("perform").exec();
         TIME_POINT(trk_e);
         TIME_ACC(trk_a, trk_b, trk_e);
 

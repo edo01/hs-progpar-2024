@@ -4,8 +4,8 @@ using namespace spu;
 
 //
 
-KNN::KNN(kNN_data_t* knn_data, const size_t n_RoIs0, const size_t n_RoIs1,
-            const int knn_k, const uint32_t knn_d, const float knn_s)
+KNN::KNN(kNN_data_t* knn_data, size_t n_RoIs0, size_t n_RoIs1,
+            int knn_k, uint32_t knn_d, float knn_s)
     : spu::module::Stateful(),n_RoIs0(n_RoIs0), n_RoIs1(n_RoIs1), knn_data(knn_data), 
         knn_k(knn_k), knn_d(knn_d), knn_s(knn_s)
     
