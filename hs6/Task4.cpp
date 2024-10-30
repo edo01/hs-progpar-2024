@@ -19,18 +19,6 @@
 
 
 int main() {
-    #include "Sigma_delta.hpp"
-#include "Morpho.hpp"
-#include "CCL.hpp"
-#include "Features_CCA.hpp"
-#include "Features_filter.hpp"
-#include "KNN.hpp"
-#include "Tracking.hpp"
-#include "Delayer.hpp"
-#include "Source_user_binary.hpp"
-#include "Finalizer.hpp"
-
-int main() {
     // 1) create the module objects
     Source_user_binary<uint8_t> src(4, "vid.mp4", false); 
 
