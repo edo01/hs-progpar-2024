@@ -1,3 +1,6 @@
+#include <iostream>
+#include <vector>
+#include <string>
 #include "Sigma_delta.hpp"
 #include "Morpho.hpp"
 #include "CCL.hpp"
