@@ -400,62 +400,68 @@ int main(int argc, char** argv) {
         // ------------------------- //
         // -- Processing at t - 1 -- //
         // ------------------------- //
-        
+
         uint32_t n_RoIs0 = 0;
-
-        Features_filter features_filter_mod0(i0, i1, j0, j1, p_cca_roi_max1,
-                        p_flt_s_min, p_flt_s_max, p_cca_roi_max2);
-
         if (n_processed_frames > 0) {
             // step 1: motion detection (per pixel) with Sigma-Delta algorithm
             TIME_POINT(sd_b);
-            Sigma_delta sigma_delta_mod0(sd_data0, i0, i1, j0, j1, p_sd_n);
-            sigma_delta_mod0["compute::in_img"].bind(IG0[0]); 
-            sigma_delta_mod0("compute").exec();
+            //sigma_delta_compute(sd_data0, (const uint8_t**)IG0, IB0, i0, i1, j0, j1, p_sd_n);
+            Sigma_delta sigma_delta_mod(sd_data0, i0, i1, j0, j1, p_sd_n);
+            sigma_delta_mod["compute::in_IG"].bind(IG0[0]);
+            sigma_delta_mod["compute::out_IB"].bind(IB0[0]);
+            sigma_delta_mod("compute").exec();
             TIME_POINT(sd_e);
             TIME_ACC(sd_a, sd_b, sd_e);
 
             // step 2: mathematical morphology
             TIME_POINT(mrp_b);
-            Morpho morpho_mod0(morpho_data0, i0, i1, j0, j1);
-            morpho_mod0["compute::in_img"] = sigma_delta_mod0["compute::out_img"];
-            morpho_mod0("compute").exec();
+            /*morpho_compute_opening3(morpho_data0, (const uint8_t**)IB0, IB0, i0, i1, j0, j1);
+            morpho_compute_closing3(morpho_data0, (const uint8_t**)IB0, IB0, i0, i1, j0, j1);*/
+            Morpho morpho_mod(morpho_data0, i0, i1, j0, j1);
+            morpho_mod["compute::in_IB"].bind(IB0[0]);
+            morpho_mod["compute::out_IB"].bind(IB0[0]);
+            morpho_mod("compute").exec();
             TIME_POINT(mrp_e);
             TIME_ACC(mrp_a, mrp_b, mrp_e);
 
             // step 3: connected components labeling (CCL)
             TIME_POINT(ccl_b);
-            CCL ccl_mod0(ccl_data0, def_p_cca_roi_max1);
-            ccl_mod0["apply::in_img"] = morpho_mod0["compute::out_img"];
-            ccl_mod0("apply").exec();
+            //const uint32_t n_RoIs_tmp0 = CCL_LSL_apply(ccl_data0, (const uint8_t**)IB0, L10, 0);
+            uint32_t n_RoIs_tmp0;
+            CCL ccl_mod(ccl_data0);
+            ccl_mod["apply::in_IB"].bind(IB0[0]);
+            ccl_mod["apply::out_L1"].bind(L10[0]);
+            ccl_mod["apply::out_n_RoIs"].bind(&n_RoIs_tmp0);
+            ccl_mod("apply").exec();
+            assert(n_RoIs_tmp0 <= (uint32_t)def_p_cca_roi_max1);
             TIME_POINT(ccl_e);
             TIME_ACC(ccl_a, ccl_b, ccl_e);
 
             // step 4: connected components analysis (CCA): from image of labels to "regions of interest" (RoIs)
             TIME_POINT(cca_b);
-            Features_CCA features_mod0(i0, i1, j0, j1, p_cca_roi_max1);
-            features_mod0["extract::in_labels"] = ccl_mod0["apply::out_labels"];
-            features_mod0["extract::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];
-
-            //features_mod["extract::out_RoIs"].bind((uint8_t*)RoIs_tmp0);
-            
-            features_mod0("extract").exec();
+            //features_extract((const uint32_t**)L10, i0, i1, j0, j1, RoIs_tmp0, n_RoIs_tmp0);
+            Features_CCA features_mod(i0, i1, j0, j1, n_RoIs_tmp0);
+            features_mod["extract::in_L1"].bind(L10[0]);
+            features_mod["extract::out_RoIs"].bind((uint8_t*)RoIs_tmp0);
+            features_mod("extract").exec();
             TIME_POINT(cca_e);
             TIME_ACC(cca_a, cca_b, cca_e);
 
             // step 5: surface filtering (rm too small and too big RoIs)
             TIME_POINT(flt_b);
-            features_filter_mod0["filter::in_labels"] = ccl_mod0["apply::out_labels"];
-            features_filter_mod0["filter::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];
-
-            //features_filter_mod["filter::in_RoIs"].bind((uint8_t*)RoIs_tmp0);
-            features_filter_mod0["filter::in_RoIs"] = features_mod0["extract::out_RoIs"];
-            
+            /*n_RoIs0 = features_filter_surface((const uint32_t**)L10, L20, i0, i1, j0, j1, RoIs_tmp0, n_RoIs_tmp0,
+                                              p_flt_s_min, p_flt_s_max);
+            assert(n_RoIs0 <= (uint32_t)p_cca_roi_max2);
+            // features_labels_zero_init(RoIs_tmp->basic, L1);
+            features_shrink_basic(RoIs_tmp0, n_RoIs_tmp0, RoIs0);*/
+            Features_filter features_filter_mod(i0, i1, j0, j1, n_RoIs_tmp0,
+                                p_flt_s_min, p_flt_s_max, p_cca_roi_max2);
+            features_filter_mod["filter::in_L1"].bind(L10[0]);
+            features_filter_mod["filter::in_RoIs_tmp"].bind((uint8_t*)RoIs_tmp0);
             //features_filter_mod["filter::out_L2"].bind(L20[0]);
-            //features_filter_mod0["filter::out_RoIs"].bind((uint8_t*)RoIs0);
-            //features_filter_mod0["filter::out_n_RoIs"].bind(&n_RoIs0);
-
-            features_filter_mod0("filter").exec();
+            features_filter_mod["filter::out_RoIs"].bind((uint8_t*)RoIs0);
+            features_filter_mod["filter::out_n_RoIs"].bind(&n_RoIs0);
+            features_filter_mod("filter").exec();
             TIME_POINT(flt_e);
             TIME_ACC(flt_a, flt_b, flt_e);
         }
@@ -466,55 +472,65 @@ int main(int argc, char** argv) {
 
         // step 1: motion detection (per pixel) with Sigma-Delta algorithm
         TIME_POINT(sd_b);
-        Sigma_delta sigma_delta_mod1(sd_data1, i0, i1, j0, j1, p_sd_n);
-        sigma_delta_mod1["compute::in_img"].bind(IG1[0]);
-        sigma_delta_mod1("compute").exec();
+        //sigma_delta_compute(sd_data1, (const uint8_t**)IG1, IB1, i0, i1, j0, j1, p_sd_n);
+        Sigma_delta sigma_delta_mod(sd_data1, i0, i1, j0, j1, p_sd_n);
+        sigma_delta_mod["compute::in_IG"].bind(IG1[0]);
+        sigma_delta_mod["compute::out_IB"].bind(IB1[0]);
+        sigma_delta_mod("compute").exec();
         TIME_POINT(sd_e);
         TIME_ACC(sd_a, sd_b, sd_e);
 
         // step 2: mathematical morphology
         TIME_POINT(mrp_b);
-        Morpho morpho_mod1(morpho_data1, i0, i1, j0, j1);
-        morpho_mod1["compute::in_img"] = sigma_delta_mod1["compute::out_img"];
-        morpho_mod1("compute").exec();
+        /*morpho_compute_opening3(morpho_data1, (const uint8_t**)IB1, IB1, i0, i1, j0, j1);
+        morpho_compute_closing3(morpho_data1, (const uint8_t**)IB1, IB1, i0, i1, j0, j1);*/
+        Morpho morpho_mod(morpho_data1, i0, i1, j0, j1);
+        morpho_mod["compute::in_IB"].bind(IB1[0]);
+        morpho_mod["compute::out_IB"].bind(IB1[0]);
+        morpho_mod("compute").exec();
         TIME_POINT(mrp_e);
         TIME_ACC(mrp_a, mrp_b, mrp_e);
 
         // step 3: connected components labeling (CCL)
         TIME_POINT(ccl_b);
-        CCL ccl_mod1(ccl_data1, def_p_cca_roi_max1);
-        ccl_mod1["apply::in_img"] = morpho_mod1["compute::out_img"];
-        ccl_mod1("apply").exec();
+        //const uint32_t n_RoIs_tmp1 = CCL_LSL_apply(ccl_data1, (const uint8_t**)IB1, L11, 0);
+        uint32_t n_RoIs_tmp1;
+        CCL ccl_mod(ccl_data1);
+        ccl_mod["apply::in_IB"].bind(IB1[0]);
+        ccl_mod["apply::out_L1"].bind(L11[0]);
+        ccl_mod["apply::out_n_RoIs"].bind(&n_RoIs_tmp1);
+        ccl_mod("apply").exec();
+        
+        assert(n_RoIs_tmp1 <= (uint32_t)def_p_cca_roi_max1);
         TIME_POINT(ccl_e);
         TIME_ACC(ccl_a, ccl_b, ccl_e);
 
         // step 4: connected components analysis (CCA): from image of labels to "regions of interest" (RoIs)
         TIME_POINT(cca_b);
-        Features_CCA features_mod1(i0, i1, j0, j1, p_cca_roi_max1);
-        features_mod1["extract::in_labels"] = ccl_mod1["apply::out_labels"];
-        features_mod1["extract::in_n_RoIs"] = ccl_mod1["apply::out_n_RoIs"];
-
-        //features_mod["extract::out_RoIs"].bind((uint8_t*)RoIs_tmp1);
-
-        features_mod1("extract").exec();
+        //features_extract((const uint32_t**)L11, i0, i1, j0, j1, RoIs_tmp1, n_RoIs_tmp1);
+        Features_CCA features_mod(i0, i1, j0, j1, n_RoIs_tmp1);
+        features_mod["extract::in_L1"].bind(L11[0]);
+        features_mod["extract::out_RoIs"].bind((uint8_t*)RoIs_tmp1);
+        features_mod("extract").exec();
         TIME_POINT(cca_e);
         TIME_ACC(cca_a, cca_b, cca_e);
 
         // step 5: surface filtering (rm too small and too big RoIs)
         TIME_POINT(flt_b);
+        /*const uint32_t n_RoIs1 = features_filter_surface((const uint32_t**)L11, L21, i0, i1, j0, j1, RoIs_tmp1,
+                                                         n_RoIs_tmp1, p_flt_s_min, p_flt_s_max);
+        assert(n_RoIs1 <= (uint32_t)p_cca_roi_max2);
+        // features_labels_zero_init(RoIs_tmp->basic, L1);
+        features_shrink_basic(RoIs_tmp1, n_RoIs_tmp1, RoIs1);*/
         uint32_t n_RoIs1;
-        Features_filter features_filter_mod1(i0, i1, j0, j1, p_cca_roi_max1,
+        Features_filter features_filter_mod(i0, i1, j0, j1, n_RoIs_tmp1,
                         p_flt_s_min, p_flt_s_max, p_cca_roi_max2);
-        features_filter_mod1["filter::in_labels"] = ccl_mod1["apply::out_labels"];
-        features_filter_mod1["filter::in_n_RoIs"] = ccl_mod1["apply::out_n_RoIs"];
-
-        //features_filter_mod["filter::in_RoIs"].bind((uint8_t*)RoIs_tmp1);
-        features_filter_mod1["filter::in_RoIs"] = features_mod1["extract::out_RoIs"];
-
-        //features_filter_mod["filter::out_L2"].bind(L20[0]);
-        //features_filter_mod1["filter::out_RoIs"].bind((uint8_t*)RoIs1);
-        //features_filter_mod1["filter::out_n_RoIs"].bind(&n_RoIs1);
-        features_filter_mod1("filter").exec();
+        features_filter_mod["filter::in_L1"].bind(L11[0]);
+        //features_filter_mod["filter::out_L2"].bind(L21[0]);
+        features_filter_mod["filter::in_RoIs_tmp"].bind((uint8_t*)RoIs_tmp1);
+        features_filter_mod["filter::out_RoIs"].bind((uint8_t*)RoIs1);
+        features_filter_mod["filter::out_n_RoIs"].bind(&n_RoIs1);
+        features_filter_mod("filter").exec();
 
         TIME_POINT(flt_e);
         TIME_ACC(flt_a, flt_b, flt_e);
@@ -525,13 +541,11 @@ int main(int argc, char** argv) {
 
         // step 6: k-NN matching (RoIs associations)
         TIME_POINT(knn_b);
+        //kNN_match(knn_data, RoIs0, n_RoIs0, RoIs1, n_RoIs1, p_knn_k, p_knn_d, p_knn_s);
         uint32_t n_assoc;
-        KNN knn_mod(knn_data, p_cca_roi_max2, p_knn_k, p_knn_d, p_knn_s);
-        knn_mod["match::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
-        knn_mod["match::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
-
-        knn_mod["match::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
-        knn_mod["match::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
+        KNN knn_mod(knn_data, n_RoIs0, n_RoIs1, p_knn_k, p_knn_d, p_knn_s);
+        knn_mod["match::out_RoIs0"].bind((uint8_t*)RoIs0);
+        knn_mod["match::out_RoIs1"].bind((uint8_t*)RoIs1);
         knn_mod["match::out_n_assoc"].bind(&n_assoc);
         knn_mod("match").exec();
         
@@ -540,10 +554,11 @@ int main(int argc, char** argv) {
 
         // step 7: temporal tracking
         TIME_POINT(trk_b);
-        Tracking tracking_mod(tracking_data, p_cca_roi_max2, cur_fra, p_trk_ext_d, p_trk_obj_min,
+        //tracking_perform(tracking_data, RoIs1, n_RoIs1, cur_fra, p_trk_ext_d, p_trk_obj_min,
+        //                 p_trk_roi_path != NULL || visu, p_trk_ext_o, p_knn_s);
+        Tracking tracking_mod(tracking_data, n_RoIs1, cur_fra, p_trk_ext_d, p_trk_obj_min,
                  p_trk_roi_path != NULL || visu, p_trk_ext_o, p_knn_s);
-        tracking_mod["perform::in_n_RoIs"] = knn_mod["match::out_n_RoIs"];
-        tracking_mod["perform::in_RoIs"] = knn_mod["match::out_RoIs"];
+        tracking_mod["perform::in_RoIs"].bind((uint8_t*)RoIs1);
         tracking_mod("perform").exec();
         TIME_POINT(trk_e);
         TIME_ACC(trk_a, trk_b, trk_e);
@@ -556,17 +571,17 @@ int main(int argc, char** argv) {
         // save frames (CCs)
         if (p_ccl_fra_path) {
             (*log_fra)["write::in_labels"].bind(L21[0]);
-            (*log_fra)["write::in_RoIs"] = tracking_mod["perform::out_RoIs"];
-            (*log_fra)["write::in_n_RoIs"] = tracking_mod["perform::out_n_RoIs"];
+            (*log_fra)["write::in_RoIs"].bind((uint8_t*)RoIs1);
+            (*log_fra)["write::in_n_RoIs"].bind(&n_RoIs1);
             (*log_fra)("write").exec();
         }
 
         // save stats
         if (p_log_path) {
-            log_RoIs["write::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
-            log_RoIs["write::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
-            log_RoIs["write::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
-            log_RoIs["write::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
+            log_RoIs["write::in_RoIs0"].bind((uint8_t*)RoIs0);
+            log_RoIs["write::in_n_RoIs0"].bind(&n_RoIs0);
+            log_RoIs["write::in_RoIs1"].bind((uint8_t*)RoIs1);
+            log_RoIs["write::in_n_RoIs1"].bind(&n_RoIs1);
             log_RoIs["write::in_frame"].bind(&cur_fra);
             log_RoIs("write").exec();
 
@@ -576,10 +591,10 @@ int main(int argc, char** argv) {
 #ifdef MOTION_ENABLE_DEBUG
                 log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
 #endif
-                log_kNN["write::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
-                log_kNN["write::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
-                log_kNN["write::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
-                log_kNN["write::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
+                log_kNN["write::in_RoIs0"].bind((uint8_t*)RoIs0);
+                log_kNN["write::in_n_RoIs0"].bind(&n_RoIs0);
+                log_kNN["write::in_RoIs1"].bind((uint8_t*)RoIs1);
+                log_kNN["write::in_n_RoIs1"].bind(&n_RoIs1);
                 log_kNN["write::in_frame"].bind(&cur_fra);
                 log_kNN("write").exec();
 

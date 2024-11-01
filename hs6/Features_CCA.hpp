@@ -13,13 +13,12 @@ public:
      * @param i1 Ending y-coordinate of the image
      * @param j0 Starting x-coordinate of the image
      * @param j1 Ending x-coordinate of the image
-     * @param n_RoIs Number of connected components
+     * @param p_cca_roi_max1 Maximum number of regions of interest
      */
-    Features_CCA(int i0, int i1, int j0, int j1, size_t n_RoIs);
+    Features_CCA(int i0, int i1, int j0, int j1, int p_cca_roi_max1);
 
 private:
-    int i0, i1, j0, j1; 
-    size_t n_RoIs;  
+    int i0, i1, j0, j1, p_cca_roi_max1;
 };
 
 #endif 

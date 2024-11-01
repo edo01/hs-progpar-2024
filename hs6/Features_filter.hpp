@@ -13,18 +13,18 @@ public:
      * @param i1 Ending y-coordinate of the image
      * @param j0 Starting x-coordinate of the image
      * @param j1 Ending x-coordinate of the image
-     * @param n_RoIs Number of connected components
+     * @param p_cca_roi_max1 maximum number of inpu RoIs 
      * @param s_min Minimum surface area for RoIs
      * @param s_max Maximum surface area for RoIs
-     * @param p_cca_roi_max2 Maximum number of RoIs
+     * @param p_cca_roi_max2 Maximum number of output RoIs
      */
     Features_filter( int i0,  int i1, int j0, int j1,
-                int n_RoIs_tmp, int s_min, int s_max,
+                int p_cca_roi_max1, int s_min, int s_max,
                 int p_cca_roi_max2);
 
 private:
     int i0, i1, j0, j1; 
-    size_t n_RoIs_tmp; 
+    int p_cca_roi_max1; 
     int s_min, s_max;  
     int p_cca_roi_max2;
 
