@@ -35,7 +35,7 @@ Features_filter::Features_filter(int i0, int i1, int j0, int j1,
             uint32_t* n_RoIs_out = tsk[so_n_RoIs_out].get_dataptr<uint32_t>();
 
       
-            *n_RoIs_out = features_filter_surface(L1_in, NULL, 
+            *n_RoIs_out = features_filter_surfacef(L1_in, NULL, 
                                                   features_filter.i0, features_filter.i1, 
                                                   features_filter.j0, features_filter.j1,
                                                   RoIs_data, *n_RoIs_in,
