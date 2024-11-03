@@ -1,5 +1,10 @@
 #include "motion/wrapper/Features_filter.hpp"
 
+/*
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+*/
+
 using namespace spu;
 // n_RoIs0 = features_filter_surface((const uint32_t**)L10, L20, i0, i1, j0, j1, RoIs_tmp0, 
 //                                                 n_RoIs_tmp0, p_flt_s_min, p_flt_s_max);
