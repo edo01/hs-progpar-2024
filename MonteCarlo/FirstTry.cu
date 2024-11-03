@@ -15,6 +15,20 @@ const int steps = 1000;
 const float dt = 1.0f / steps; 
 const int simulations = 100000; 
 
+// Function that catches the error 
+void testCUDA(cudaError_t error, const char* file, int line) {
+
+	if (error != cudaSuccess) {
+		printf("There is an error in file %s at line %d\n", file, line);
+		exit(EXIT_FAILURE);
+	}
+}
+
+// Has to be defined in the compilation in order to get the correct value of the 
+// macros __FILE__ and __LINE__
+#define testCUDA(error) (testCUDA(error, __FILE__ , __LINE__))
+
+
 __global__ void hestonMonteCarlo(float *d_results, int steps, float dt, float kappa, float theta, float sigma, float rho) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -50,7 +64,20 @@ int main() {
     int threadsPerBlock = 256;
     int blocks = (simulations + threadsPerBlock - 1) / threadsPerBlock;
 
+	float Tim;
+	cudaEvent_t start, stop;			// GPU timer instructions
+	cudaEventCreate(&start);			// GPU timer instructions
+	cudaEventCreate(&stop);				// GPU timer instructions
+	cudaEventRecord(start, 0);			// GPU timer instructions
+
     hestonMonteCarlo<<<blocks, threadsPerBlock>>>(d_results, steps, dt, kappa, theta, sigma, rho);
+
+	cudaEventRecord(stop, 0);			// GPU timer instructions
+	cudaEventSynchronize(stop);			// GPU timer instructions
+	cudaEventElapsedTime(&Tim,			// GPU timer instructions
+		start, stop);					// GPU timer instructions
+	cudaEventDestroy(start);			// GPU timer instructions
+	cudaEventDestroy(stop);				// GPU timer instructions
 
     float *h_results = (float *)malloc(simulations * sizeof(float));
     cudaMemcpy(h_results, d_results, simulations * sizeof(float), cudaMemcpyDeviceToHost);
