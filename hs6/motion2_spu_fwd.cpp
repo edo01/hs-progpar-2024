@@ -357,20 +357,19 @@ int main(int argc, char** argv) {
     Features_filter features_filter_mod0(i0, i1, j0, j1, p_cca_roi_max1,
                     p_flt_s_min, p_flt_s_max, p_cca_roi_max2);
 
-    //sigma_delta_mod0["compute::in_img"].bind(IG0[0]); 
-    sigma_delta_mod0["compute::in_img"] = delayer["produce::out"];
+    sigma_delta_mod0["computef::fwd_img"] = delayer["produce::out"];
     sigma_delta_mod0.sigma_delta_init((const uint8_t**)IG1);
     // step 2: mathematical morphology
-    morpho_mod0["compute::in_img"] = sigma_delta_mod0["compute::out_img"];
+    morpho_mod0["computef::fwd_img"] = sigma_delta_mod0["computef::fwd_img"];
     // step 3: connected components labeling (CCL)
-    ccl_mod0["apply::in_img"] = morpho_mod0["compute::out_img"];
+    ccl_mod0["apply::in_img"] = morpho_mod0["computef::fwd_img"];
     // step 4: connected components analysis (CCA): from image of labels to "regions of interest" (RoIs)
     features_mod0["extract::in_labels"] = ccl_mod0["apply::out_labels"];
     features_mod0["extract::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];            
     // step 5: surface filtering (rm too small and too big RoIs)
-    features_filter_mod0["filter::in_labels"] = ccl_mod0["apply::out_labels"];
-    features_filter_mod0["filter::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];
-    features_filter_mod0["filter::in_RoIs"] = features_mod0["extract::out_RoIs"];
+    features_filter_mod0["filterf::in_labels"] = ccl_mod0["apply::out_labels"];
+    features_filter_mod0["filterf::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];
+    features_filter_mod0["filterf::fwd_RoIs"] = features_mod0["extract::out_RoIs"];
         
 
     // --------------------- //
@@ -392,35 +391,36 @@ int main(int argc, char** argv) {
     //sigma_delta_mod1["compute::in_img"].bind(IG1[0]);
     sigma_delta_mod1["compute::in_img"] = video["generate::out_img_gray8"];
     // step 2: mathematical morphology
-    morpho_mod1["compute::in_img"] = sigma_delta_mod1["compute::out_img"];
+    morpho_mod1["computef::fwd_img"] = sigma_delta_mod1["compute::out_img"];
     // step 3: connected components labeling (CCL)
-    ccl_mod1["apply::in_img"] = morpho_mod1["compute::out_img"];
+    ccl_mod1["apply::in_img"] = morpho_mod1["computef::fwd_img"];
     // step 4: connected components analysis (CCA): from image of labels to "regions of interest" (RoIs)
     features_mod1["extract::in_labels"] = ccl_mod1["apply::out_labels"];
     features_mod1["extract::in_n_RoIs"] = ccl_mod1["apply::out_n_RoIs"];
     // step 5: surface filtering (rm too small and too big RoIs)
-    features_filter_mod1["filter::in_labels"] = ccl_mod1["apply::out_labels"];
-    features_filter_mod1["filter::in_n_RoIs"] = ccl_mod1["apply::out_n_RoIs"];
-    features_filter_mod1["filter::in_RoIs"] = features_mod1["extract::out_RoIs"];
+    features_filter_mod1["filterf::in_labels"] = ccl_mod1["apply::out_labels"];
+    features_filter_mod1["filterf::in_n_RoIs"] = ccl_mod1["apply::out_n_RoIs"];
+    features_filter_mod1["filterf::fwd_RoIs"] = features_mod1["extract::out_RoIs"];
     
     // ----------------------------- //
     // -- Associations (t - 1, t) -- //
     // ----------------------------- //
 
     // step 6: k-NN matching (RoIs associations)
-    knn_mod["match::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
-    knn_mod["match::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
-    knn_mod["match::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
-    knn_mod["match::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
-    knn_mod["match::out_n_assoc"].bind(&n_assoc);
+    knn_mod["matchf::in_n_RoIs0"] = features_filter_mod0["filterf::out_n_RoIs"];
+    knn_mod["matchf::in_n_RoIs1"] = features_filter_mod1["filterf::out_n_RoIs"];
+    knn_mod["matchf::in_RoIs0"] = features_filter_mod0["filterf::fwd_RoIs"];
+    knn_mod["matchf::fwd_RoIs1"] = features_filter_mod1["filterf::fwd_RoIs"];
+    knn_mod["matchf::out_n_assoc"].bind(&n_assoc);
+    
     // step 7: temporal tracking
-    tracking_mod["perform::in_n_RoIs"] = knn_mod["match::out_n_RoIs"]; // prof uses features_filter_mod1["filter::out_n_RoIs"];
-    tracking_mod["perform::in_RoIs"] = knn_mod["match::out_RoIs"];
+    tracking_mod["perform::in_n_RoIs"] = features_filter_mod1["filterf::out_n_RoIs"]; 
+    tracking_mod["perform::in_RoIs"] = knn_mod["matchf::fwd_RoIs1"];
     tracking_mod["perform::in_frame"]= video["generate::out_frame"];    
 
     // save frames (CCs)
     if (p_ccl_fra_path) {
-        (*log_fra)["write::in_labels"] = features_filter_mod1["filter::out_labels"];
+        (*log_fra)["write::in_labels"] = features_filter_mod1["filterf::out_labels"];
         (*log_fra)["write::in_RoIs"] = tracking_mod["perform::out_RoIs"];
         (*log_fra)["write::in_n_RoIs"] = tracking_mod["perform::out_n_RoIs"];
     }
