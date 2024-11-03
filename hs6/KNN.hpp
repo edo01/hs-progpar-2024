@@ -1,6 +1,11 @@
 #ifndef KNN_HPP
 #define KNN_HPP
 
+/*
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+*/
+
 #include <streampu.hpp>
 #include "motion/tools.h" 
 #include "motion/kNN.h"   

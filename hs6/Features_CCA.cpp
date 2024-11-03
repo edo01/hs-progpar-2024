@@ -1,5 +1,9 @@
 #include "motion/wrapper/Features_CCA.hpp"
 
+/*
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+*/
 using namespace spu;
 
 Features_CCA::Features_CCA(int i0, int i1, int j0, int j1, int p_cca_roi_max1)
