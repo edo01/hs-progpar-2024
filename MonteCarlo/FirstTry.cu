@@ -34,12 +34,10 @@ __global__ void hestonMonteCarlo(float *d_results, int steps, float dt, float ka
         float dSt = r * St * dt + sqrtf(vt) * St * sqrtf(dt) * (rho * G1 + sqrtf(1 - rho * rho) * G2);
         float dvt = kappa * (theta - vt) * dt + sigma * sqrtf(vt) * sqrtf(dt) * G1;
 
-        // Update asset price and volatility, ensuring volatility is non-negative
         St += dSt;
-        vt = fabs(vt + dvt); 
+        vt = fabs(vt + dvt); // the function g is either taken to be equal to (·)+ or to | · |
     }
-
-    // (S_T - K)^+
+    // E[f(ST )] = E[(S1 − 1)+].
     d_results[tid] = fmaxf(St - K, 0.0f);
 }
 
