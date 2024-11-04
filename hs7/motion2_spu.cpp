@@ -1,3 +1,93 @@
+/**
+##############################################################
+##############################################################
+##############################################################
+
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+
+##############################################################
+##############################################################
+##############################################################
+*/
+
+/**
+ * POINT 7:
+ * motion2_spu statistics:
+ * # Tracks statistics:
+ * # -> Processed frames =   21
+ * # -> Detected tracks  =   38
+ * # -> Took  8.293 seconds (avg 2 FPS)
+ * 
+ * 
+ * # -------------------------------------------||------------------------------||--------------------------------
+ * #        Statistics for the given task       ||       Basic statistics       ||        Measured latency        
+ * #     ('*' = any, '-' = same as previous)    ||          on the task         ||                                
+ * # -------------------------------------------||------------------------------||--------------------------------
+ * # -------------   |-------------------|---------||----------|----------|--------||----------|----------|----------
+ * #       MODULE    |              TASK |   TIMER ||    CALLS |     TIME |   PERC ||  AVERAGE |  MINIMUM |  MAXIMUM 
+ * #                 |                   |         ||          |      (s) |    (%) ||     (us) |     (us) |     (us) 
+ * # -------------   |-------------------|---------||----------|----------|--------||----------|----------|----------
+ * #       Morpho    |           compute |       * ||       21 |     2.00 |  24.06 || 95006.20 | 84555.51 | 1.64e+05
+ * #  Sigma_delta    |           compute |       * ||       21 |     1.84 |  22.24 || 87835.50 | 49239.22 | 1.94e+05
+ * #       Morpho    |           compute |       * ||       20 |     1.74 |  20.99 || 87019.95 | 83133.74 | 1.05e+05
+ * #  Sigma_delta    |           compute |       * ||       20 |     1.71 |  20.57 || 85298.65 | 73958.59 | 1.09e+05
+ * #          CCL    |             apply |       * ||       21 |     0.26 |   3.18 || 12561.93 | 10896.55 | 21671.04
+ * #          CCL    |             apply |       * ||       20 |     0.26 |   3.09 || 12810.55 | 11047.86 | 21728.66
+ * # Features_CCA    |           extract |       * ||       20 |     0.18 |   2.14 ||  8887.16 |  5958.96 | 19015.05
+ * # Features_CCA    |           extract |       * ||       21 |     0.17 |   2.09 ||  8235.06 |  4390.78 | 14635.89
+ * # Features_filter |            filter |       * ||       20 |     0.04 |   0.54 ||  2236.57 |  1481.78 |  5237.72
+ * # Features_filter |            filter |       * ||       21 |     0.04 |   0.52 ||  2053.05 |   782.50 |  3480.57
+ * #        Video    |          generate |       * ||       21 |     0.03 |   0.31 ||  1235.11 |     0.00 |  1868.10
+ * #      Delayer    |           produce |       * ||       21 |     0.01 |   0.08 ||   300.74 |   253.33 |   560.94
+ * #  Logger_RoIs    |             write |       * ||       20 |     0.01 |   0.07 ||   299.83 |   164.78 |  1486.14
+ * #      Delayer    |          memorize |       * ||       20 |     0.01 |   0.07 ||   287.94 |   235.65 |   400.78
+ * #   Logger_kNN    |             write |       * ||       20 |     0.00 |   0.02 ||   100.63 |    84.00 |   217.84
+ * # Logger_tracks   |             write |       * ||       20 |     0.00 |   0.01 ||    41.31 |     7.39 |   118.76
+ * #          KNN    |             match |       * ||       20 |     0.00 |   0.01 ||    25.78 |     3.88 |    47.13
+ * #     Tracking    |           perform |       * ||       20 |     0.00 |   0.00 ||    10.33 |     3.41 |    27.79
+ * # -------------   |-------------------|---------||----------|----------|--------||----------|----------|----------
+ * #        TOTAL    |                 * |       * ||       20 |     8.29 | 100.00 || 4.15e+05 | 3.34e+05 | 6.83e+05
+   
+ *    
+ * 
+ * motion2 statistics
+ * # Tracks statistics:
+ * # -> Processed frames =   20
+ * # -> Detected tracks  =   38
+ * # -> Took  7.523 seconds (avg 2 FPS)
+ * #
+ * # Average latencies: 
+ * # -> Video decoding =    1.590 ms
+ * # -> Sigma-Delta    =  163.218 ms
+ * # -> Morphology     =  171.369 ms
+ * # -> CC Labeling    =   23.178 ms
+ * # -> CC Analysis    =   16.676 ms
+ * # -> Filtering      =    0.058 ms
+ * # -> k-NN           =    0.024 ms
+ * # -> Tracking       =    0.011 ms
+ * # -> *Logs*         =    0.000 ms
+ * # -> *Visu*         =    0.000 ms
+ * # => Total          =  376.124 ms [~ 2.66 FPS]
+
+
+ * The first thing that we can notice is that the motion2_spu has a higher latency than the motion2.
+ * This is may be due to the fact that we are not levarging the full potential of the SPU, since 
+ * we are not using the forwading data mechanism. In fact, all the modules copy the data from the
+ * previous module to the next one and most of the time this can be avoided by using the forwarding.
+ * 
+ * Moreover, even though we expressed the dependencies between the modules, the execution of the
+ * modules is not yet parallelized. So, we are basically executing the modules one after the other 
+ * without taking advantage of the parallelism that the SPU can offer.  
+ * 
+ * 
+ * point 8:
+ * We tried to add the forwarding sockets only to the most computationally expensive modules:
+ * sigma delta and morpho. Doing so, we were able to reduce the latency to 7.97 seconds, which still
+ * is higher than the motion2. This is due to the fact that we are not yet exploiting the parallelism
+ * and SPU introduces some overheads.
+ * 
+ */
 #include <stdio.h>
 #include <assert.h>
 #include <stdio.h>
@@ -295,7 +385,6 @@ int main(int argc, char** argv) {
     CCL_data_t* ccl_data1 = CCL_LSL_alloc_data(i0, i1, j0, j1);
     kNN_data_t* knn_data = kNN_alloc_data(p_cca_roi_max2);
     tracking_data_t* tracking_data = tracking_alloc_data(MAX(p_trk_obj_min, p_trk_ext_o) + 1, p_cca_roi_max2);
-    uint8_t **IG1 = ui8matrix(i0, i1, j0, j1); // grayscale input image at t
 
     Logger_RoIs log_RoIs(p_log_path ? p_log_path : "", p_vid_in_start, p_vid_in_skip, p_cca_roi_max2, tracking_data);
     Logger_kNN log_kNN(p_log_path ? p_log_path : "", p_vid_in_start, p_cca_roi_max2);
@@ -308,12 +397,10 @@ int main(int argc, char** argv) {
                             VCDC_FFMPEG_IO, p_vid_out_id, p_vid_out_play, p_trk_obj_min, p_cca_roi_max2, p_vid_in_skip,
                             tracking_data));
     }
-
+    
     // ------------------------- //
     // -- DATA INITIALISATION -- //
     // ------------------------- //
-    sigma_delta_init_data(sd_data0, (const uint8_t**)IG1, i0, i1, j0, j1);
-    sigma_delta_init_data(sd_data1, (const uint8_t**)IG1, i0, i1, j0, j1);
     morpho_init_data(morpho_data0);
     morpho_init_data(morpho_data1);
     CCL_LSL_init_data(ccl_data0);
@@ -324,30 +411,15 @@ int main(int argc, char** argv) {
     TIME_POINT(stop_alloc_init);
     printf("# Allocations and initialisations took %6.3f sec\n", TIME_ELAPSED2_SEC(start_alloc_init, stop_alloc_init));
 
-    // --------------------- //
-    // -- PROCESSING LOOP -- //
-    // --------------------- //
-
     printf("# The program is running...\n");
     size_t n_moving_objs = 0, n_processed_frames = 0;
-    
-    // -------------------------------------- //
-    // -- IMAGE PROCESSING CHAIN EXECUTION -- //
-    // -------------------------------------- //
 
-    // ------------------------- //
-    // -- Processing at t - 1 -- //
-    // ------------------------- //
-    // step 1: motion detection (per pixel) with Sigma-Delta algorithm
-
-    uint32_t cur_fra;
-    video["generate::out_frame"].bind(&cur_fra);
-    video["generate::out_img_gray8"].bind(IG1[0]);
+    // run video in order to initialize correctly the first frame
     video("generate").exec();
 
     //delayer
     spu::module::Delayer<uint8_t> delayer(((i1 - i0) + 1)*((j1 - j0) + 1), 0);
-    delayer.set_data(IG1[0]);
+    delayer.set_data(video["generate::out_img_gray8"].get_dataptr<uint8_t>());
     delayer["memorize::in"] = video["generate::out_img_gray8"];
 
     Sigma_delta sigma_delta_mod0(sd_data0, i0, i1, j0, j1, p_sd_n);
@@ -357,9 +429,9 @@ int main(int argc, char** argv) {
     Features_filter features_filter_mod0(i0, i1, j0, j1, p_cca_roi_max1,
                     p_flt_s_min, p_flt_s_max, p_cca_roi_max2);
 
-    //sigma_delta_mod0["compute::in_img"].bind(IG0[0]); 
+    // step 1: motion detection (per pixel) with Sigma-Delta algorithm
     sigma_delta_mod0["compute::in_img"] = delayer["produce::out"];
-    sigma_delta_mod0.sigma_delta_init((const uint8_t**)IG1);
+    sigma_delta_mod0.sigma_delta_init((const uint8_t**)video["generate::out_img_gray8"].get_2d_dataptr<uint8_t>());
     // step 2: mathematical morphology
     morpho_mod0["compute::in_img"] = sigma_delta_mod0["compute::out_img"];
     // step 3: connected components labeling (CCL)
@@ -377,19 +449,18 @@ int main(int argc, char** argv) {
     // -- Processing at t -- //
     // --------------------- //
     Sigma_delta sigma_delta_mod1(sd_data1, i0, i1, j0, j1, p_sd_n);
-    sigma_delta_mod1.sigma_delta_init((const uint8_t**)IG1);
+    sigma_delta_mod1.sigma_delta_init((const uint8_t**)video["generate::out_img_gray8"].get_2d_dataptr<uint8_t>());
     Morpho morpho_mod1(morpho_data1, i0, i1, j0, j1);
     CCL ccl_mod1(ccl_data1, def_p_cca_roi_max1);
     Features_CCA features_mod1(i0, i1, j0, j1, p_cca_roi_max1);
     Features_filter features_filter_mod1(i0, i1, j0, j1, p_cca_roi_max1,
                     p_flt_s_min, p_flt_s_max, p_cca_roi_max2);
-    uint32_t n_assoc;
+    //uint32_t n_assoc;
     KNN knn_mod(knn_data, p_cca_roi_max2, p_knn_k, p_knn_d, p_knn_s);
     Tracking tracking_mod(tracking_data, p_cca_roi_max2, p_trk_ext_d, p_trk_obj_min,
                 p_trk_roi_path != NULL || visu, p_trk_ext_o, p_knn_s);
 
     // step 1: motion detection (per pixel) with Sigma-Delta algorithm
-    //sigma_delta_mod1["compute::in_img"].bind(IG1[0]);
     sigma_delta_mod1["compute::in_img"] = video["generate::out_img_gray8"];
     // step 2: mathematical morphology
     morpho_mod1["compute::in_img"] = sigma_delta_mod1["compute::out_img"];
@@ -412,7 +483,8 @@ int main(int argc, char** argv) {
     knn_mod["match::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
     knn_mod["match::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
     knn_mod["match::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
-    knn_mod["match::out_n_assoc"].bind(&n_assoc);
+    //knn_mod["match::out_n_assoc"].bind(&n_assoc);
+
     // step 7: temporal tracking
     tracking_mod["perform::in_n_RoIs"] = knn_mod["match::out_n_RoIs"]; // prof uses features_filter_mod1["filter::out_n_RoIs"];
     tracking_mod["perform::in_RoIs"] = knn_mod["match::out_RoIs"];
@@ -456,17 +528,22 @@ int main(int argc, char** argv) {
         (*visu)["display::in_img"] = video["generate::out_img_gray8"];
         (*visu)["display::in_RoIs"] = knn_mod["match::out_RoIs"];
         (*visu)["display::in_n_RoIs"] = knn_mod["match::out_n_RoIs"];
+        (*visu)("display").exec();
     }
-    
 
     // --------------------- //
-    // -- PROCESSING LOOP -- //
+    // ------ SEQUENCE ----- //
     // --------------------- //
     std::vector<spu::runtime::Task*> first_tasks = {&delayer("produce"), &video("generate")};
-    
-    TIME_POINT(start_compute);
     spu::runtime::Sequence sequence(first_tasks);
-        sequence.exec([&video, tracking_data, &n_processed_frames, &t_start_compute](){ 
+
+    // Enabling statistics
+    for (auto& mdl : sequence.get_modules<spu::module::Module>(false))
+        for (auto& tsk : mdl->tasks)
+                tsk->set_stats(p_stats);
+
+    TIME_POINT(start_compute);
+    sequence.exec([&video, tracking_data, &n_processed_frames, &t_start_compute](){ 
         TIME_POINT(stop_compute); 
         n_processed_frames++;
         unsigned long n_moving_objs = tracking_count_objects(tracking_data->tracks);
@@ -479,9 +556,13 @@ int main(int argc, char** argv) {
     });
     TIME_POINT(stop_compute);
     
-    /*std::ofstream file("graph.dot");
-    sequence.export_dot(file);*/
 
+    // --------------------- //
+    // -- GRAPH EXPORT -- //
+    // --------------------- //
+    std::ofstream file("graph.dot");
+    sequence.export_dot(file);
+    
     n_moving_objs = tracking_count_objects(tracking_data->tracks);
 
     fprintf(stderr, " -- Time = %6.3f sec", TIME_ELAPSED2_SEC(start_compute, stop_compute));
@@ -513,14 +594,17 @@ int main(int argc, char** argv) {
     if (visu)
         visu->flush();
 
+    // print stats
+    if(p_stats) {
+        const bool ordered = true, display_throughput = false;
+        spu::tools::Stats::show(sequence.get_modules_per_types(), ordered, display_throughput);
+    }
+
     // ---------- //
     // -- FREE -- //
     // ---------- //
-    sigma_delta_free_data(sd_data0);
-    sigma_delta_free_data(sd_data1);
     morpho_free_data(morpho_data0);
     morpho_free_data(morpho_data1);
-    free_ui8matrix(IG1, i0, i1, j0, j1);
     CCL_LSL_free_data(ccl_data0);
     CCL_LSL_free_data(ccl_data1);
     kNN_free_data(knn_data);
