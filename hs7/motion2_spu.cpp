@@ -486,9 +486,9 @@ int main(int argc, char** argv) {
     //knn_mod["match::out_n_assoc"].bind(&n_assoc);
 
     // step 7: temporal tracking
+    tracking_mod["perform::in_frame"]= video["generate::out_frame"];    
     tracking_mod["perform::in_n_RoIs"] = knn_mod["match::out_n_RoIs"]; // prof uses features_filter_mod1["filter::out_n_RoIs"];
     tracking_mod["perform::in_RoIs"] = knn_mod["match::out_RoIs"];
-    tracking_mod["perform::in_frame"]= video["generate::out_frame"];    
 
     // save frames (CCs)
     if (p_ccl_fra_path) {
@@ -530,6 +530,59 @@ int main(int argc, char** argv) {
         (*visu)["display::in_n_RoIs"] = knn_mod["match::out_n_RoIs"];
         (*visu)("display").exec();
     }
+
+    // --------------------- //
+    // ----- PIPELINE ------ //
+    // --------------------- //
+    std::vector<std::tuple<
+        std::vector<spu::runtime::Task*>, 
+        std::vector<spu::runtime::Task*>,
+        std::vector<spu::runtime::Task*>>> pip_stages = {
+                std::make_tuple<std::vector<spu::runtime::Task*>, 
+                        std::vector<spu::runtime::Task*>,
+                        std::vector<spu::runtime::Task*>>(
+                                {&video("generate"), &delayer("produce"), },
+                                {&sigma_delta_mod0("compute"), &sigma_delta_mod1("compute"),},
+                                {}      
+                        ),
+                std::make_tuple<std::vector<spu::runtime::Task*>, 
+                        std::vector<spu::runtime::Task*>,
+                        std::vector<spu::runtime::Task*>>(
+                                {&morpho_mod0("compute"), &morpho_mod1("compute"),},
+                                {&knn_mod("match")},
+                                {}
+                        ),
+                std::make_tuple<std::vector<spu::runtime::Task*>, 
+                        std::vector<spu::runtime::Task*>,
+                        std::vector<spu::runtime::Task*>>(
+                                {&tracking_mod("perform")},
+                                {},
+                                {}
+                        )
+        };
+
+    if(p_ccl_fra_path){
+        std::get<2>(pip_stages[1]).push_back(&(*log_fra)("write"));
+    }
+    if(p_log_path){
+        std::get<2>(pip_stages[0]).push_back(&log_RoIs("write"));
+        // log_kNN
+        std::get<2>(pip_stages[0]).push_back(&log_kNN("write"));
+        // log_trk not removed is only in the first stage
+    }
+    if(visu){
+        std::get<2>(pip_stages[0]).push_back(&(*visu)("display"));
+    }
+
+    std::vector<spu::runtime::Task*> seq_first_tasks = { &video("generate"), &delayer("produce") };
+
+    spu::runtime::Pipeline pip(seq_first_tasks, pip_stages, 
+        {       1,      1,      1},
+        {       1,      1,      },
+        {       false,  false,  },
+        {false, false,  false   },
+        { "PU0  | PU1  |  PU2 "});
+
 
     // --------------------- //
     // ------ SEQUENCE ----- //
