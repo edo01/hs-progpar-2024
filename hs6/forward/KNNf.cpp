@@ -36,7 +36,7 @@ KNN::KNN(kNN_data_t* knn_data, int p_cca_roi_max2, int knn_k, uint32_t knn_d, fl
             
             uint32_t* n_assoc_out = tsk[so_n_assoc].get_dataptr<uint32_t>();
 
-            *n_assoc_out = kNN_match(knn.knn_data, RoIs0_in, *n_RoIs0_in, RoIs1_data,
+            *n_assoc_out = kNN_matchf(knn.knn_data, RoIs0_in, *n_RoIs0_in, RoIs1_data,
                                      *n_RoIs1_in, knn.knn_k, knn.knn_d, knn.knn_s); 
 
             return runtime::status_t::SUCCESS;

@@ -5,6 +5,11 @@
 #include "motion/tools.h" 
 #include "motion/features.h"        
 
+/*
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+*/
+
 class Features_CCA : public spu::module::Stateful {
 public:
     /**

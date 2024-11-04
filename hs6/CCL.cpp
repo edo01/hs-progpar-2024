@@ -1,5 +1,8 @@
 #include "motion/wrapper/CCL.hpp"
-
+/*
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+*/
 using namespace spu;
 
 CCL::CCL(CCL_data_t* ccl_data, int def_p_cca_roi_max)

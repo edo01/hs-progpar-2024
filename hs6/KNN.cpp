@@ -1,8 +1,12 @@
 #include "motion/wrapper/KNN.hpp"
 
+/*
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+*/
+
 using namespace spu;
 
-//
 
 KNN::KNN(kNN_data_t* knn_data, int p_cca_roi_max2, int knn_k, uint32_t knn_d, float knn_s)
     : spu::module::Stateful(), p_cca_roi_max2(p_cca_roi_max2), knn_data(knn_data), 
