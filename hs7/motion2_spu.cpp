@@ -578,11 +578,17 @@ int main(int argc, char** argv) {
 
     spu::runtime::Pipeline pip(seq_first_tasks, pip_stages, 
         {       1,      1,      1},
+        //{       1,      2,      1 }, //2 times replication
         {       1,      1,      },
         {       false,  false,  },
         {false, false,  false   },
         { "PU0  | PU1  |  PU2 "});
 
+    pipeline.exec({
+        [] (const std::vector<const int*>& statuses) { return false; }, 
+        [] (const std::vector<const int*>& statuses) { return false; }, 
+        [] (const std::vector<const int*>& statuses) { return false; }  
+    });
 
     // --------------------- //
     // ------ SEQUENCE ----- //
@@ -646,6 +652,17 @@ int main(int argc, char** argv) {
     // some frames have been buffered for the visualization, display or write these frames here
     if (visu)
         visu->flush();
+/*
+    const bool ordered = true;                  
+    const bool display_throughput = false;      
+    auto stages = pipeline.get_stages();        
+    for (size_t s = 0; s < stages.size(); s++) {
+        const int n_threads = stages[s]->get_n_threads();  
+        std::cout << "#" << std::endl;
+        std::cout << "# Pipeline stage " << (s + 1) << " (" << n_threads << " thread(s)): " << std::endl;
+        tools::Stats::show(stages[s]->get_tasks_per_types(), ordered, display_throughput);
+    }
+*/
 
     // print stats
     if(p_stats) {
