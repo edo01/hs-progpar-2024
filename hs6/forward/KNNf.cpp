@@ -31,7 +31,9 @@ KNN::KNN(kNN_data_t* knn_data, int p_cca_roi_max2, int knn_k, uint32_t knn_d, fl
             const RoI_t* RoIs0_in = tsk[si_RoIs0].get_dataptr<const RoI_t>();
             const uint32_t* n_RoIs1_in = tsk[si_n_RoIs1].get_dataptr<const uint32_t>();
 
+            //Change RoIs1 to a forward socket to share data between input and output
             RoI_t* RoIs1_data = tsk[sf_RoIs1].get_dataptr<RoI_t>();
+            
             uint32_t* n_assoc_out = tsk[so_n_assoc].get_dataptr<uint32_t>();
 
             *n_assoc_out = kNN_matchf(knn.knn_data, RoIs0_in, *n_RoIs0_in, RoIs1_data,

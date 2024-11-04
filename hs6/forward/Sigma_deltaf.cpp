@@ -27,6 +27,7 @@ Sigma_delta::Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0, in
         {
             Sigma_delta& sigma = static_cast<Sigma_delta&>(m);
             
+            //Use the same img_data pointer to operate img data in the task.
             uint8_t** img_data = tsk[sf_img].get_2d_dataptr<uint8_t>();
             
             sigma_delta_computef(sigma.sd_data, (const uint8_t**)img_data, img_data, sigma.i0, sigma.i1, sigma.j0, sigma.j1, sigma.p_sd_n);
