@@ -9,14 +9,14 @@ Morpho::Morpho(morpho_data_t* morpho_data, int i0, int i1, int j0, int j1)
     this->set_name(name);
     this->set_short_name(name);
 
-    auto &t = this->create_task("compute");
+    auto &compute = this->create_task("compute");
 
     // input socket
-    size_t si_img = this->template create_2d_sck_in<uint8_t>(t, "in_img", (i1 - i0 + 1), (j1 - j0 + 1)); 
+    size_t si_img = this->template create_2d_sck_in<uint8_t>(compute, "in_img", (i1 - i0 + 1), (j1 - j0 + 1)); 
     // output socket
-    size_t so_img = this->template create_2d_sck_out<uint8_t>(t, "out_img", (i1 - i0 + 1), (j1 - j0 + 1)); 
+    size_t so_img = this->template create_2d_sck_out<uint8_t>(compute, "out_img", (i1 - i0 + 1), (j1 - j0 + 1)); 
 
-    create_codelet(t, 
+    create_codelet(compute, 
         [si_img, so_img] 
         (Module &m, spu::runtime::Task &tsk, size_t frame) -> int 
         {

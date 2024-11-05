@@ -16,14 +16,36 @@ Sigma_delta::Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0, in
     this->set_name(name);
     this->set_short_name(name);
 
-    auto &t = this->create_task("compute");
+    auto &compute = this->create_task("compute");
+    auto &computef = this->create_task("computef");
+
+
+    // fwd socket
+    size_t sf_img = this->template create_2d_sck_fwd<uint8_t>(computef, "fwd_img", (i1-i0)+1, (j1-j0)+1);
 
     // Input socket
-    size_t si_img = this->template create_2d_sck_in<uint8_t>(t, "in_img", (i1-i0)+1, (j1-j0)+1);
+    size_t si_img = this->template create_2d_sck_in<uint8_t>(compute, "in_img", (i1-i0)+1, (j1-j0)+1);
     // Output socket
-    size_t so_img = this->template create_2d_sck_out<uint8_t>(t, "out_img", (i1-i0)+1, (j1-j0)+1);
+    size_t so_img = this->template create_2d_sck_out<uint8_t>(compute, "out_img", (i1-i0)+1, (j1-j0)+1);
 
-    create_codelet(t, 
+
+    // computef codelet
+    create_codelet(computef, 
+        [sf_img]
+        (Module &m, runtime::Task &tsk, size_t frame) -> int 
+        {
+            Sigma_delta sigma = static_cast<Sigma_delta&>(m);
+            
+            uint8_t** img_fwd = tsk[sf_img].get_2d_dataptr<uint8_t>();
+            
+            sigma_delta_compute(sigma.sd_data, (const uint8_t**)img_fwd, img_fwd, sigma.i0, sigma.i1, sigma.j0, sigma.j1, sigma.p_sd_n);
+            return runtime::status_t::SUCCESS;
+        }
+    );
+
+    
+    // compute codelet
+    create_codelet(compute, 
         [si_img, so_img] 
         (Module &m, runtime::Task &tsk, size_t frame) -> int 
         {
@@ -36,7 +58,10 @@ Sigma_delta::Sigma_delta(sigma_delta_data_t* sd_data, int i0, int i1, int j0, in
             return runtime::status_t::SUCCESS;
         }
     );
+      
+}
 
-
-        
+void Sigma_delta::sigma_delta_init(const uint8_t** data)
+{
+    sigma_delta_init_data(sd_data, data, i0, i1, j0, j1);
 }

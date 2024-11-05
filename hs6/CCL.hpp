@@ -5,11 +5,6 @@
 #include "motion/tools.h" 
 #include "motion/CCL.h"              
 
-/*
-AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
-BOARD ID: Q
-*/
-
 class CCL : public spu::module::Stateful {
 public:
     /**
