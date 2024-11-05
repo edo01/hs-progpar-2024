@@ -652,7 +652,7 @@ int main(int argc, char** argv) {
     // some frames have been buffered for the visualization, display or write these frames here
     if (visu)
         visu->flush();
-/*
+
     const bool ordered = true;                  
     const bool display_throughput = false;      
     auto stages = pipeline.get_stages();        
@@ -660,16 +660,17 @@ int main(int argc, char** argv) {
         const int n_threads = stages[s]->get_n_threads();  
         std::cout << "#" << std::endl;
         std::cout << "# Pipeline stage " << (s + 1) << " (" << n_threads << " thread(s)): " << std::endl;
-        tools::Stats::show(stages[s]->get_tasks_per_types(), ordered, display_throughput);
+        spu::tools::Stats::show(stages[s]->get_tasks_per_types(), ordered, display_throughput);
     }
-*/
 
+
+/*
     // print stats
     if(p_stats) {
         const bool ordered = true, display_throughput = false;
         spu::tools::Stats::show(sequence.get_modules_per_types(), ordered, display_throughput);
     }
-
+*/
     // ---------- //
     // -- FREE -- //
     // ---------- //
