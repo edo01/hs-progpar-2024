@@ -623,32 +623,6 @@ int main(int argc, char** argv) {
 	// --------------------- //
     // ----- PIPELINE ------ //
     // --------------------- //
-    std::vector<std::tuple<
-        std::vector<spu::runtime::Task*>, 
-        std::vector<spu::runtime::Task*>,
-        std::vector<spu::runtime::Task*>>> pip_stages = {
-			std::make_tuple<std::vector<spu::runtime::Task*>, 
-				std::vector<spu::runtime::Task*>,
-				std::vector<spu::runtime::Task*>>(
-					{&video("generate"), &delayer("produce"), },
-					{&sigma_delta_mod0("compute"), &sigma_delta_mod1("compute"),},
-					{}      
-				),
-			std::make_tuple<std::vector<spu::runtime::Task*>, 
-				std::vector<spu::runtime::Task*>,
-				std::vector<spu::runtime::Task*>>(
-					{&morpho_mod0("compute"), &morpho_mod1("compute"),},
-					{&knn_mod("match")},
-					{}
-				),
-			std::make_tuple<std::vector<spu::runtime::Task*>, 
-				std::vector<spu::runtime::Task*>,
-				std::vector<spu::runtime::Task*>>(
-					{&tracking_mod("perform")},
-					{},
-					{}
-				)
-    };
 
     std::vector<std::tuple<
         std::vector<spu::runtime::Task*>, 
