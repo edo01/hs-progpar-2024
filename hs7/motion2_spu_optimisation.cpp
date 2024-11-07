@@ -620,14 +620,14 @@ int main(int argc, char** argv) {
 				std::vector<spu::runtime::Task*>,
 				std::vector<spu::runtime::Task*>>({ &morpho_mod("compute") },
                     { &features_filter_mod("filter") },
-                    //{ &delayer("memorize") },
                     {}
                 ),
-            std::make_tuple(
-                std::vector<spu::runtime::Task*>{ &delayer("produce"), &delayer("memorize")},
-                std::vector<spu::runtime::Task*>{ &tracking_mod("perform") },
-                {}
-            )
+            std::make_tuple<std::vector<spu::runtime::Task*>, 
+				std::vector<spu::runtime::Task*>,
+				std::vector<spu::runtime::Task*>>({ &delayer("produce"), &delayer("memorize")},
+                    {},
+                    {}
+                )
     };
     if(p_ccl_fra_path){
         std::get<2>(pip_stages[1]).push_back(&(*log_fra)("write"));
