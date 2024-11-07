@@ -6,16 +6,6 @@
 #include "motion/kNN.h"   
 
 class KNN : public spu::module::Stateful {
-    public:
-        /**
-         * Constructor to initialize the KNN module
-         * @param knn_k Number of neighbors to consider
-         * @param knn_d Maximum distance for matching
-         * @param knn_s Minimum surface ratio for matching
-         */
-        KNN(kNN_data_t* knn_data, int p_cca_roi_max2,
-                int knn_k, uint32_t knn_d, float knn_s);
-
     private:
         kNN_data_t* knn_data;
         int p_cca_roi_max2;
@@ -23,18 +13,29 @@ class KNN : public spu::module::Stateful {
         uint32_t knn_d;
         float knn_s;
 
-    KNN* KNN::clone() const {
-        auto k = new KNN(*this);  
-        k->deep_copy(*this);     
-        return k;
-    }
+    public:
+        /**
+         * Constructor to initialize the KNN module
+         * @param knn_k Number of neighbors to consider
+         * @param knn_d Maximum distance for matching
+         * @param knn_s Minimum surface ratio for matching
+         */
+        /*
+        KNN(kNN_data_t* knn_data, int p_cca_roi_max2,
+                int knn_k, uint32_t knn_d, float knn_s);
+        */
 
+        KNN* KNN::clone() const {
+            auto k = new KNN(*this);  
+            k->deep_copy(*this);     
+            return k;
+        }
 
-    void KNN::deep_copy(const KNN& k) {
-        Stateful::deep_copy(k); 
-        this->knn_data = kNN_alloc_data(k.knn_data->p_cca_roi_max2);
-        knn_init_data(this->knn_data);
-    }
+        void KNN::deep_copy(const KNN& k) {
+            Stateful::deep_copy(k); 
+            this->knn_data = kNN_alloc_data(k.knn_data->p_cca_roi_max2);
+            knn_init_data(this->knn_data);
+        }
 };
 
 #endif 
