@@ -676,11 +676,17 @@ int main(int argc, char** argv) {
     std::vector<spu::runtime::Task*> seq_first_tasks = { &delayer("produce"), &video("generate") };
 
     spu::runtime::Pipeline pipeline(seq_first_tasks, pip_stages, 
-        {       1,      1,      1}, //{       1,      2,      1 }, //2 times replication
+        {1,         1,      1   }, //{       1,      2,      1 }, //2 times replication
         {   1,              1   },
         {       false,  false   },
         {false, false,  false   },
         { "PU0  | PU1  |  PU2 "});
+
+    
+    // Enabling statistics
+    for (auto& mdl : pipeline.get_modules<spu::module::Module>(false))
+        for (auto& tsk : mdl->tasks)
+                tsk->set_stats(p_stats);
 
 
     TIME_POINT(start_compute);
@@ -720,7 +726,15 @@ int main(int argc, char** argv) {
         return video.is_done();
     });
     TIME_POINT(stop_compute); */
-    
+
+
+/* 
+    // print stats
+    if(p_stats) {
+        const bool ordered = true, display_throughput = false;
+        //spu::tools::Stats::show(sequence.get_modules_per_types(), ordered, display_throughput);
+    }
+ */
 
     // --------------------- //
     // -- GRAPH EXPORT -- //
@@ -761,9 +775,19 @@ int main(int argc, char** argv) {
 
     // print stats
     if(p_stats) {
-        const bool ordered = true, display_throughput = false;
         //spu::tools::Stats::show(sequence.get_modules_per_types(), ordered, display_throughput);
+
+        const bool ordered = true;                  
+        const bool display_throughput = false;      
+        auto stages = pipeline.get_stages();        
+        for (size_t s = 0; s < stages.size(); s++) {
+            const int n_threads = stages[s]->get_n_threads();  
+            std::cout << "#" << std::endl;
+            std::cout << "# Pipeline stage " << (s + 1) << " (" << n_threads << " thread(s)): " << std::endl;
+            spu::tools::Stats::show(stages[s]->get_tasks_per_types(), ordered, display_throughput);
+        }
     }
+
 
     // ---------- //
     // -- FREE -- //
