@@ -16,6 +16,9 @@
 class Morpho : public spu::module::Stateful {
 public:
     Morpho(morpho_data_t* morpho_data, int i0, int i1, int j0, int j1);
+    virtual Morpho* clone() const override;
+    void deep_copy(const Morpho& m);
+    
 private:
     morpho_data_t* morpho_data;  
     int i0, i1, j0, j1;  

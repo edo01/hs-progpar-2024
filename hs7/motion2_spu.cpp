@@ -586,8 +586,8 @@ int main(int argc, char** argv) {
 
             // always enable associations logging
             //if (cur_fra > (uint32_t)p_vid_in_start) {
-            log_kNN["write::in_nearest"].bind(knn_data->nearest[0]);
-            log_kNN["write::in_distances"].bind(knn_data->distances[0]);
+            log_kNN["write::in_nearest"] = knn_mod["match::out_nearest"]; //.bind(knn_data->nearest[0]);
+            log_kNN["write::in_distances"] = knn_mod["match::out_distances"]; //.bind(knn_data->distances[0]);
     #ifdef MOTION_ENABLE_DEBUG
             log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
     #endif
@@ -634,14 +634,14 @@ int main(int argc, char** argv) {
 				std::vector<spu::runtime::Task*>,
 				std::vector<spu::runtime::Task*>>(
 					{&delayer("produce"), &video("generate"), },
-					{&sigma_delta_mod0("compute"), &sigma_delta_mod1("compute"),},
+					{&sigma_delta_mod0("compute"), &sigma_delta_mod1("compute"), &delayer("memorize")},
 					{}      
 				),
 			std::make_tuple<std::vector<spu::runtime::Task*>, 
 				std::vector<spu::runtime::Task*>,
 				std::vector<spu::runtime::Task*>>(
 					{&morpho_mod0("compute"), &morpho_mod1("compute"),},
-					{&knn_mod("match")},
+					{p_forward? &knn_mod("matchf") : &knn_mod("match")},
 					{}
 				),
 			std::make_tuple<std::vector<spu::runtime::Task*>, 
@@ -658,26 +658,30 @@ int main(int argc, char** argv) {
         std::get<0>(pip_stages[2]).push_back(&(*log_fra)("write"));
     }
     if(p_log_path){
-        std::get<2>(pip_stages[0]).push_back(&log_RoIs("write"));
-		std::get<0>(pip_stages[1]).push_back(&log_RoIs("write"));
+        std::get<2>(pip_stages[0]).push_back(&log_RoIs("write")); // Why if I remove this still work?
+        std::get<2>(pip_stages[1]).push_back(&log_RoIs("write"));
+		std::get<0>(pip_stages[2]).push_back(&log_RoIs("write"));
         // log_kNN
         std::get<2>(pip_stages[0]).push_back(&log_kNN("write"));
-		std::get<0>(pip_stages[1]).push_back(&log_kNN("write"));
+        std::get<2>(pip_stages[1]).push_back(&log_kNN("write"));
+		std::get<0>(pip_stages[2]).push_back(&log_kNN("write"));
 
         // log_trk
         std::get<2>(pip_stages[0]).push_back(&log_trk("write"));
-        std::get<0>(pip_stages[1]).push_back(&log_trk("write"));
+        std::get<2>(pip_stages[1]).push_back(&log_trk("write"));
+        std::get<0>(pip_stages[2]).push_back(&log_trk("write"));
     }
     if(visu){
         std::get<2>(pip_stages[0]).push_back(&(*visu)("display"));
-        std::get<0>(pip_stages[1]).push_back(&(*visu)("display"));
+        std::get<2>(pip_stages[1]).push_back(&(*visu)("display"));
+        std::get<0>(pip_stages[2]).push_back(&(*visu)("display"));
     }
 
     std::vector<spu::runtime::Task*> seq_first_tasks = { &delayer("produce"), &video("generate") };
 
     spu::runtime::Pipeline pipeline(seq_first_tasks, pip_stages, 
-        {1,         1,      1   }, //{       1,      2,      1 }, //2 times replication
-        {   1,              1   },
+        {1,         2,      1   }, //{       1,      2,      1 }, //2 times replication
+        {   2,             2 },
         {       false,  false   },
         {false, false,  false   },
         { "PU0  | PU1  |  PU2 "});
@@ -691,15 +695,15 @@ int main(int argc, char** argv) {
 
     TIME_POINT(start_compute);
     pipeline.exec({
-        [&video] (const std::vector<const int*>& statuses) { return video.is_done(); }, 
-        [&video] (const std::vector<const int*>& statuses) { return video.is_done();}, 
+        [] (const std::vector<const int*>& statuses) { return false; }, 
+        [] (const std::vector<const int*>& statuses) { return false; }, 
         [&video, tracking_data, &n_processed_frames] (const std::vector<const int*>& statuses) { 
             n_processed_frames++;
             unsigned long n_moving_objs = tracking_count_objects(tracking_data->tracks);
             fprintf(stderr, " -- Processed frames = %ld", n_processed_frames);
             fprintf(stderr, " -- Tracks = %3lu\r", n_moving_objs);
             fflush(stderr);
-            return video.is_done(); 
+            return false; // video.is_done();??
         }  
     });
     TIME_POINT(stop_compute);

@@ -16,6 +16,9 @@ public:
     KNN(kNN_data_t* knn_data, int p_cca_roi_max2,
             int knn_k, uint32_t knn_d, float knn_s);
 
+    virtual KNN* clone() const override;
+    void deep_copy(const KNN& k);
+
 private:
     kNN_data_t* knn_data;
     int p_cca_roi_max2;

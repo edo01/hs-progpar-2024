@@ -34,3 +34,13 @@ Features_CCA::Features_CCA(int i0, int i1, int j0, int j1, int p_cca_roi_max1)
         }
     );
 }
+
+Features_CCA* Features_CCA::clone() const {
+    auto f = new Features_CCA(*this);  
+    f->deep_copy(*this);                  
+    return f;
+}
+
+void Features_CCA::deep_copy(const Features_CCA& f) {
+    Stateful::deep_copy(f);  
+}

@@ -38,3 +38,16 @@ CCL::CCL(CCL_data_t* ccl_data, int def_p_cca_roi_max)
         }
     );
 }
+
+CCL* CCL::clone() const {
+    auto c = new CCL(*this);  
+    c->deep_copy(*this);      
+    return c;
+}
+
+void CCL::deep_copy(const CCL& c) {
+    Stateful::deep_copy(c);  
+    this->ccl_data = CCL_LSL_alloc_data(c.ccl_data->i0, c.ccl_data->i1,
+                                    c.ccl_data->j0, c.ccl_data->j1);
+    CCL_LSL_init_data(this->ccl_data);
+}
