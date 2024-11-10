@@ -586,17 +586,22 @@ int main(int argc, char** argv) {
 
             // always enable associations logging
             //if (cur_fra > (uint32_t)p_vid_in_start) {
-            log_kNN["write::in_nearest"] = knn_mod["match::out_nearest"]; //.bind(knn_data->nearest[0]);
-            log_kNN["write::in_distances"] = knn_mod["match::out_distances"]; //.bind(knn_data->distances[0]);
-    #ifdef MOTION_ENABLE_DEBUG
-            log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
-    #endif
             if(p_forward){
+                log_kNN["write::in_nearest"] = knn_mod["matchf::out_nearest"]; //.bind(knn_data->nearest[0]);
+                log_kNN["write::in_distances"] = knn_mod["matchf::out_distances"]; //.bind(knn_data->distances[0]);
+#ifdef MOTION_ENABLE_DEBUG
+               log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
+#endif
                 log_kNN["write::in_RoIs0"] = features_filter_mod0["filterf::out_RoIs"];
                 log_kNN["write::in_n_RoIs0"] = features_filter_mod0["filterf::out_n_RoIs"];
                 log_kNN["write::in_RoIs1"] = features_filter_mod1["filterf::out_RoIs"];
                 log_kNN["write::in_n_RoIs1"] = features_filter_mod1["filterf::out_n_RoIs"];
             }else{
+                log_kNN["write::in_nearest"] = knn_mod["match::out_nearest"]; //.bind(knn_data->nearest[0]);
+                log_kNN["write::in_distances"] = knn_mod["match::out_distances"]; //.bind(knn_data->distances[0]);
+#ifdef MOTION_ENABLE_DEBUG
+               log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
+#endif
                 log_kNN["write::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
                 log_kNN["write::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
                 log_kNN["write::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
