@@ -394,11 +394,8 @@ int main(int argc, char** argv) {
     // -- DATA ALLOCATION -- //
     // --------------------- //
 
-    sigma_delta_data_t* sd_data0 = sigma_delta_alloc_data(i0, i1, j0, j1, 1, 254);
     sigma_delta_data_t* sd_data1 = sigma_delta_alloc_data(i0, i1, j0, j1, 1, 254);
-    morpho_data_t* morpho_data0 = morpho_alloc_data(i0, i1, j0, j1);
     morpho_data_t* morpho_data1 = morpho_alloc_data(i0, i1, j0, j1);
-    CCL_data_t* ccl_data0 = CCL_LSL_alloc_data(i0, i1, j0, j1);
     CCL_data_t* ccl_data1 = CCL_LSL_alloc_data(i0, i1, j0, j1);
     kNN_data_t* knn_data = kNN_alloc_data(p_cca_roi_max2);
     tracking_data_t* tracking_data = tracking_alloc_data(MAX(p_trk_obj_min, p_trk_ext_o) + 1, p_cca_roi_max2);
@@ -418,22 +415,10 @@ int main(int argc, char** argv) {
     // ------------------------- //
     // -- DATA INITIALISATION -- //
     // ------------------------- //
-    morpho_init_data(morpho_data0);
     morpho_init_data(morpho_data1);
-    CCL_LSL_init_data(ccl_data0);
     CCL_LSL_init_data(ccl_data1);
     kNN_init_data(knn_data);
     tracking_init_data(tracking_data);
-
-	// ------------------------ //
-	// -- Initialization t-1 -- //
-	// ------------------------ //
-    Sigma_delta sigma_delta_mod0(sd_data0, i0, i1, j0, j1, p_sd_n);
-    Morpho morpho_mod0(morpho_data0, i0, i1, j0, j1);
-    CCL ccl_mod0(ccl_data0, def_p_cca_roi_max1);
-    Features_CCA features_mod0(i0, i1, j0, j1, p_cca_roi_max1);
-    Features_filter features_filter_mod0(i0, i1, j0, j1, p_cca_roi_max1,
-                    p_flt_s_min, p_flt_s_max, p_cca_roi_max2);
 
 	// ---------------------- //
 	// -- Initialization t -- //
@@ -453,7 +438,8 @@ int main(int argc, char** argv) {
     						p_trk_roi_path != NULL || visu, p_trk_ext_o, p_knn_s);
 
 	// delayer initialization
-	spu::module::Delayer<uint8_t> delayer(((i1 - i0) + 1)*((j1 - j0) + 1), 0);
+	spu::module::Delayer<uint32_t> delayer_n_RoIs(1, 0);
+    spu::module::Delayer<uint8_t> delayer_RoIs(p_cca_roi_max2 * sizeof(RoI_t), 0);
 
 	TIME_POINT(stop_alloc_init);
 
@@ -469,38 +455,11 @@ int main(int argc, char** argv) {
     video("generate").exec();
 
     //delayer
-    delayer.set_data(video["generate::out_img_gray8"].get_dataptr<uint8_t>());
-    delayer["memorize::in"] = video["generate::out_img_gray8"];
+    //delayer.set_data(video["generate::out_img_gray8"].get_dataptr<uint8_t>());
+    //delayer["memorize::in"] = video["generate::out_img_gray8"];
 
 	// initialize sigma delta with the first frame
-    sigma_delta_mod0.sigma_delta_init((const uint8_t**)video["generate::out_img_gray8"].get_2d_dataptr<uint8_t>());
 	sigma_delta_mod1.sigma_delta_init((const uint8_t**)video["generate::out_img_gray8"].get_2d_dataptr<uint8_t>());
-
-	// ------------------------ //
-	// -- Processing at t-1 -- //
-	// ------------------------ //
-    {
-        // step 1: motion detection (per pixel) with Sigma-Delta algorithm
-        sigma_delta_mod0["compute::in_img"] = delayer["produce::out"];
-        // step 2: mathematical morphology
-        morpho_mod0["compute::in_img"] = sigma_delta_mod0["compute::out_img"];
-        // step 3: connected components labeling (CCL)
-        ccl_mod0["apply::in_img"] = morpho_mod0["compute::out_img"];
-        // step 4: connected components analysis (CCA): from image of labels to "regions of interest" (RoIs)
-        features_mod0["extract::in_labels"] = ccl_mod0["apply::out_labels"];
-        features_mod0["extract::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];            
-        // step 5: surface filtering (rm too small and too big RoIs)
-        if (p_forward) {
-            features_filter_mod0["filterf::fwd_labels"] = ccl_mod0["apply::out_labels"];
-            features_filter_mod0["filterf::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];
-            features_filter_mod0["filterf::in_RoIs"] = features_mod0["extract::out_RoIs"];
-        }else{
-            features_filter_mod0["filter::in_labels"] = ccl_mod0["apply::out_labels"];
-            features_filter_mod0["filter::in_n_RoIs"] = ccl_mod0["apply::out_n_RoIs"];
-            features_filter_mod0["filter::in_RoIs"] = features_mod0["extract::out_RoIs"];
-        }
-        
-    }
     
     // --------------------- //
     // -- Processing at t -- //
@@ -526,6 +485,14 @@ int main(int argc, char** argv) {
             features_filter_mod1["filter::in_RoIs"] = features_mod1["extract::out_RoIs"];
         }
     }
+
+    if(p_forward){
+        delayer_n_RoIs["memorize::in"] = features_filter_mod1["filterf::out_n_RoIs"];
+        delayer_RoIs["memorize::in"] = features_filter_mod1["filterf::out_RoIs"];
+    }else{
+        delayer_n_RoIs["memorize::in"] = features_filter_mod1["filter::out_n_RoIs"];
+        delayer_RoIs["memorize::in"] = features_filter_mod1["filter::out_RoIs"];
+    }
     
     // ----------------------------- //
     // -- Associations (t - 1, t) -- //
@@ -533,14 +500,14 @@ int main(int argc, char** argv) {
     {
         // step 6: k-NN matching (RoIs associations)
         if (p_forward) {
-            knn_mod["matchf::in_n_RoIs0"] = features_filter_mod0["filterf::out_n_RoIs"];
+            knn_mod["matchf::in_n_RoIs0"] = delayer_n_RoIs["produce::out"];
             knn_mod["matchf::in_n_RoIs1"] = features_filter_mod1["filterf::out_n_RoIs"];
-            knn_mod["matchf::fwd_RoIs0"] = features_filter_mod0["filterf::out_RoIs"];
+            knn_mod["matchf::fwd_RoIs0"] = delayer_RoIs["produce::out"];
             knn_mod["matchf::fwd_RoIs1"] = features_filter_mod1["filterf::out_RoIs"];
         }else{
-            knn_mod["match::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
+            knn_mod["match::in_n_RoIs0"] = delayer_n_RoIs["produce::out"];
             knn_mod["match::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
-            knn_mod["match::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
+            knn_mod["match::in_RoIs0"] = delayer_RoIs["produce::out"];
             knn_mod["match::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
         }
         // step 7: temporal tracking
@@ -572,13 +539,13 @@ int main(int argc, char** argv) {
         // save stats
         if (p_log_path) {
             if(p_forward){
-                log_RoIs["write::in_RoIs0"] = features_filter_mod0["filterf::out_RoIs"];
-                log_RoIs["write::in_n_RoIs0"] = features_filter_mod0["filterf::out_n_RoIs"];
+                log_RoIs["write::in_RoIs0"] = delayer_RoIs["produce::out"];
+                log_RoIs["write::in_n_RoIs0"] = delayer_n_RoIs["produce::out"];
                 log_RoIs["write::in_RoIs1"] = features_filter_mod1["filterf::out_RoIs"];
                 log_RoIs["write::in_n_RoIs1"] = features_filter_mod1["filterf::out_n_RoIs"];
             }else{
-                log_RoIs["write::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
-                log_RoIs["write::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
+                log_RoIs["write::in_RoIs0"] = delayer_RoIs["produce::out"];
+                log_RoIs["write::in_n_RoIs0"] = delayer_n_RoIs["produce::out"];
                 log_RoIs["write::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
                 log_RoIs["write::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
             }
@@ -592,8 +559,8 @@ int main(int argc, char** argv) {
 #ifdef MOTION_ENABLE_DEBUG
                log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
 #endif
-                log_kNN["write::in_RoIs0"] = features_filter_mod0["filterf::out_RoIs"];
-                log_kNN["write::in_n_RoIs0"] = features_filter_mod0["filterf::out_n_RoIs"];
+                log_kNN["write::in_RoIs0"] = delayer_RoIs["produce::out"];
+                log_kNN["write::in_n_RoIs0"] = delayer_n_RoIs["produce::out"];
                 log_kNN["write::in_RoIs1"] = features_filter_mod1["filterf::out_RoIs"];
                 log_kNN["write::in_n_RoIs1"] = features_filter_mod1["filterf::out_n_RoIs"];
             }else{
@@ -602,8 +569,8 @@ int main(int argc, char** argv) {
 #ifdef MOTION_ENABLE_DEBUG
                log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
 #endif
-                log_kNN["write::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
-                log_kNN["write::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
+                log_kNN["write::in_RoIs0"] = delayer_RoIs["produce::out"];
+                log_kNN["write::in_n_RoIs0"] = delayer_n_RoIs["produce::out"];
                 log_kNN["write::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
                 log_kNN["write::in_n_RoIs1"] = features_filter_mod1["filter::out_n_RoIs"];
             }
@@ -638,21 +605,24 @@ int main(int argc, char** argv) {
 			std::make_tuple<std::vector<spu::runtime::Task*>, 
 				std::vector<spu::runtime::Task*>,
 				std::vector<spu::runtime::Task*>>(
-					{&delayer("produce"), &video("generate"), },
-					{&sigma_delta_mod0("compute"), &sigma_delta_mod1("compute"), &delayer("memorize")},
+					{&video("generate"), },
+					{&sigma_delta_mod1("compute")},
 					{}      
 				),
 			std::make_tuple<std::vector<spu::runtime::Task*>, 
 				std::vector<spu::runtime::Task*>,
 				std::vector<spu::runtime::Task*>>(
-					{&morpho_mod0("compute"), &morpho_mod1("compute"),},
-					{p_forward? &knn_mod("matchf") : &knn_mod("match")},
+					{&morpho_mod1("compute"),},
+					{p_forward? &features_filter_mod1("filterf") : &features_filter_mod1("filter")},
 					{}
 				),
 			std::make_tuple<std::vector<spu::runtime::Task*>, 
 				std::vector<spu::runtime::Task*>,
 				std::vector<spu::runtime::Task*>>(
-					{&tracking_mod("perform")},
+					{&delayer_n_RoIs("produce"), &delayer_RoIs("produce"), 
+                        &delayer_n_RoIs("memorize"), &delayer_RoIs("memorize"), 
+                        p_forward? &knn_mod("matchf") : &knn_mod("match"), 
+                        &tracking_mod("perform")},
 					{},
 					{}
 				)
@@ -682,11 +652,11 @@ int main(int argc, char** argv) {
         std::get<0>(pip_stages[2]).push_back(&(*visu)("display"));
     }
 
-    std::vector<spu::runtime::Task*> seq_first_tasks = { &delayer("produce"), &video("generate") };
+    std::vector<spu::runtime::Task*> seq_first_tasks = {&delayer_n_RoIs("produce"), &delayer_RoIs("produce"), &video("generate")};
 
     spu::runtime::Pipeline pipeline(seq_first_tasks, pip_stages, 
-        {1,         2,      1   }, //{       1,      2,      1 }, //2 times replication
-        {   2,             2 },
+        {   1,      4,     1 }, //{       1,      2,      1 }, //2 times replication
+        {   4,             5 },
         {       false,  false   },
         {false, false,  false   },
         { "PU0  | PU1  |  PU2 "});
@@ -801,9 +771,7 @@ int main(int argc, char** argv) {
     // ---------- //
     // -- FREE -- //
     // ---------- //
-    morpho_free_data(morpho_data0);
     morpho_free_data(morpho_data1);
-    CCL_LSL_free_data(ccl_data0);
     CCL_LSL_free_data(ccl_data1);
     kNN_free_data(knn_data);
     tracking_free_data(tracking_data);
