@@ -13,23 +13,7 @@ Features_filter::Features_filter(int i0, int i1, int j0, int j1,
     this->set_name(name);
     this->set_short_name(name);
 
-    auto &filter    =   this->create_task("filter");
     auto &filterf   =   this->create_task("filterf");
-    
-    // -------------------- //
-    // -- NORMAL VERSION -- //
-    // -------------------- //
-
-    // input sockets
-    size_t si_labels_in = this->template create_2d_sck_in<uint32_t>(filter, "in_labels", (i1 - i0) + 1, (j1 - j0) + 1); 
-    size_t si_RoIs_in = this->template create_socket_in<uint8_t>(filter, "in_RoIs", p_cca_roi_max1 * sizeof(RoI_t));
-    size_t si_n_RoIs_in = this->template create_socket_in<uint32_t>(filter, "in_n_RoIs", 1);
-    
-    // output sockets
-    size_t so_labels_out = this->template create_2d_sck_out<uint32_t>(filter, "out_labels", (i1 - i0) + 1, (j1 - j0) + 1); 
-    // we don't know the size of the output RoIs, so we allocate the maximum size
-    size_t so_RoIs_out = this->template create_socket_out<uint8_t>(filter, "out_RoIs", p_cca_roi_max2 * sizeof(RoI_t));
-    uint32_t so_n_RoIs_out = this->template create_socket_out<uint32_t>(filter, "out_n_RoIs", 1);
 
     // ---------------------- //
     // -- FORWARD VERSION -- //
@@ -71,37 +55,6 @@ Features_filter::Features_filter(int i0, int i1, int j0, int j1,
             assert(*n_RoIs_out <= (uint32_t)features_filter.p_cca_roi_max2);
 
             features_shrink_basic((const RoI_t*)RoIs_in, *n_RoIs_in, RoIs_out);
-
-            return runtime::status_t::SUCCESS;
-        }
-    );
-
-    create_codelet(filter, 
-        [si_labels_in, si_n_RoIs_in, si_RoIs_in, so_labels_out, so_RoIs_out, so_n_RoIs_out] 
-        (Module &m, spu::runtime::Task &tsk, size_t frame) -> int 
-        {
-            Features_filter features_filter = static_cast<Features_filter&>(m);
-            
-            // Get the input and output data pointers from the task
-            const uint32_t** labels_in = tsk[si_labels_in].get_2d_dataptr<const uint32_t>();
-            const uint32_t* n_RoIs_in = tsk[si_n_RoIs_in].get_dataptr<const uint32_t>();
-            // not const
-            const RoI_t* RoIs_in = (RoI_t*)tsk[si_RoIs_in].get_dataptr<const uint8_t>();
-            
-            uint32_t** labels_out =  tsk[so_labels_out].get_2d_dataptr<uint32_t>();
-
-            RoI_t* RoIs_out = (RoI_t*)tsk[so_RoIs_out].get_dataptr<uint8_t>();
-            uint32_t* n_RoIs_out = tsk[so_n_RoIs_out].get_dataptr<uint32_t>();
-
-            *n_RoIs_out = features_filter_surface(labels_in, labels_out, 
-                                    features_filter.i0, features_filter.i1, 
-                                    features_filter.j0, features_filter.j1,
-                                    (RoI_t*)RoIs_in, *n_RoIs_in,
-                                    features_filter.s_min, features_filter.s_max);
-            
-            assert(*n_RoIs_out <= (uint32_t)features_filter.p_cca_roi_max2);
-
-            features_shrink_basic((RoI_t*)RoIs_in, *n_RoIs_in, RoIs_out);
 
             return runtime::status_t::SUCCESS;
         }
