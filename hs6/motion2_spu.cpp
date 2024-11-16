@@ -99,6 +99,9 @@ BOARD ID: Q
  * # Features_filter |           filterf |       * ||       20 |     0.02 |   0.63 ||  1185.80 |   561.51 |  1848.93
  * #        Tracking |           perform |       * ||       20 |     0.00 |   0.00 ||     5.21 |     2.01 |     7.59
  * 
+ * PLEASE NOTE THAT WE MANTAINED BOTH THE NORMAL AND THE FORWARDING VERSION OF THE MODULES
+ * forwarding can be enabled through the using of the flag --forwarding
+ * 
  */
 #include <stdio.h>
 #include <assert.h>
@@ -582,17 +585,22 @@ int main(int argc, char** argv) {
 
         // always enable associations logging
         //if (cur_fra > (uint32_t)p_vid_in_start) {
-        log_kNN["write::in_nearest"].bind(knn_data->nearest[0]);
-        log_kNN["write::in_distances"].bind(knn_data->distances[0]);
-#ifdef MOTION_ENABLE_DEBUG
-        log_kNN["write::in_conflicts"].bind(knn_data->conflicts);
-#endif
 		if(p_forward){
+            log_kNN["write::in_nearest"] = knn_mod["matchf::out_nearest"];
+            log_kNN["write::in_distances"] = knn_mod["matchf::out_distances"];
+#ifdef MOTION_ENABLE_DEBUG
+            log_kNN["write::in_conflicts"] = knn_mod["matchf::out_conflicts"];
+#endif
 			log_kNN["write::in_RoIs0"] = features_filter_mod0["filterf::out_RoIs"];
 			log_kNN["write::in_n_RoIs0"] = features_filter_mod0["filterf::out_n_RoIs"];
 			log_kNN["write::in_RoIs1"] = features_filter_mod1["filterf::out_RoIs"];
 			log_kNN["write::in_n_RoIs1"] = features_filter_mod1["filterf::out_n_RoIs"];
 		}else{
+            log_kNN["write::in_nearest"] = knn_mod["match::out_nearest"];
+            log_kNN["write::in_distances"] = knn_mod["match::out_distances"];
+#ifdef MOTION_ENABLE_DEBUG
+            log_kNN["write::in_conflicts"] = knn_mod["match::out_conflicts"];
+#endif
 			log_kNN["write::in_RoIs0"] = features_filter_mod0["filter::out_RoIs"];
 			log_kNN["write::in_n_RoIs0"] = features_filter_mod0["filter::out_n_RoIs"];
 			log_kNN["write::in_RoIs1"] = features_filter_mod1["filter::out_RoIs"];
