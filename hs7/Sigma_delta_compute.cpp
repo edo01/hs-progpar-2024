@@ -41,11 +41,9 @@ void sigma_delta_free_data(sigma_delta_data_t* sd_data) {
 void sigma_delta_compute(sigma_delta_data_t *sd_data, const uint8_t** img_in, uint8_t** img_out, const int i0,
                          const int i1, const int j0, const int j1, const uint8_t N) {
     
-#pragma omp parallel
+#pragma omp parallel // we generate the threads only once
 {
-
-    // best configuration should be static,3
-    #pragma omp for schedule(runtime)
+    #pragma omp for schedule(static,3)
     for (int i = i0; i <= i1; i++) {
         for (int j = j0; j <= j1; j+=mipp::N<uint8_t>()) {
             mipp::Reg<uint8_t> M_r(&sd_data->M[i][j]); // uint8_t new_m = sd_data->M[i][j]; 
@@ -60,7 +58,7 @@ void sigma_delta_compute(sigma_delta_data_t *sd_data, const uint8_t** img_in, ui
         }
     }
 
-    #pragma omp for schedule(runtime)
+    #pragma omp for schedule(static,3)
     for (int i = i0; i <= i1; i++) {
         for (int j = j0; j <= j1; j+=mipp::N<int8_t>()) {
             mipp::Reg<uint8_t> M_r(&sd_data->M[i][j]);
@@ -72,9 +70,9 @@ void sigma_delta_compute(sigma_delta_data_t *sd_data, const uint8_t** img_in, ui
         }
     }
 
-    #pragma omp for schedule(runtime)
+    #pragma omp for schedule(static,3)
     for (int i = i0; i <= i1; i++) {
-       /*  for (int j = j0; j <= j1; j+=mipp::N<int8_t>()) {
+        for (int j = j0; j <= j1; j+=mipp::N<int8_t>()) {
             mipp::Reg<uint8_t> V_r(&sd_data->V[i][j]); //uint8_t new_v = sd_data->V[i][j];
             mipp::Reg<uint8_t> O_r(&sd_data->O[i][j]);
             
@@ -83,19 +81,11 @@ void sigma_delta_compute(sigma_delta_data_t *sd_data, const uint8_t** img_in, ui
             V_r = mipp::blend(V_r + 1, V_r, mask_lt_r);
             V_r = mipp::blend(V_r - 1, V_r, mask_gt_r);
             V_r = mipp::max(mipp::min(V_r, mipp::Reg<uint8_t>(sd_data->vmax) ), mipp::Reg<uint8_t>(sd_data->vmin));
-            V_r.store(&sd_data->V[i][j]); */
-
-        for (int j = j0; j <= j1; j++) {
-            uint8_t new_v = sd_data->V[i][j];
-            if (sd_data->V[i][j] < N * sd_data->O[i][j])
-                new_v += 1;
-            else if (sd_data->V[i][j] > N * sd_data->O[i][j])
-                new_v -= 1;
-            sd_data->V[i][j] = MAX(MIN(new_v, sd_data->vmax), sd_data->vmin);
+            V_r.store(&sd_data->V[i][j]); 
         }
     }
 
-    #pragma omp for schedule(runtime)
+    #pragma omp for schedule(static,3)
     for (int i = i0; i <= i1; i++) {
         for(int j = j0; j <= j1; j+=mipp::N<uint8_t>()){
             mipp::Reg<uint8_t> O_r(&sd_data->O[i][j]);

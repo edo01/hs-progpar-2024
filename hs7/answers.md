@@ -179,8 +179,6 @@ Adp_1_to_n_0 module of the first stage is reduced from 37.26% to 15.05% and the 
 using 4 threads.
 
 # GRAPH SEMPLIFICATION
- 
-New Throughput: **45 FPS**
 
 Pipeline stage 1 (1 thread(s)): 
 -------------------------------------------||------------------------------||--------------------------------
@@ -232,3 +230,154 @@ Adp_n_to_1_1 |            pull_1 |       * ||      100 |     2.15 |  98.69 || 21
 -------------|-------------------|---------||----------|----------|--------||----------|----------|----------
        TOTAL |                 * |       * ||      100 |     2.18 | 100.00 || 21761.99 |   124.48 | 3.20e+05
 
+
+
+*task 1* - New Throughput: **45 FPS** (using 4 threads in stage 2)
+By simplifying the graph we can see that the throughput of the pipeline is doubled. This is because we have 
+halved the number of tasks in the second stage of the pipeline, that is the most critical one. In fact the 
+average latency of the second stage is reduced from 122000 us to 85844 us.
+
+*task 2* - The k-NN task could have been replicated and a 4-stage pipeline could have been implemented, since the k-NN task
+does not carry any data dependecy over time. However, the k-NN task takes only 0.01% of the third stage time, so it 
+is not worth replicating it. We can suppose that, if we replicate it and we add a new stage, the application will
+not benefit from it given the additional overhead of handling a new stage. In fact, replication can be useful 
+when the task is computationally expensive and it is blocking the pipeline.
+
+*task 3* - When pinning the threads to the cores, we experienced a slight increase in the throughput of the pipeline
+around(3-5 FPS).
+
+# TASK 4 Data Parallelism with OpenMP
+
+Pipeline stage 1 (1 thread(s)): 
+-------------------------------------------||------------------------------||--------------------------------
+       Statistics for the given task       ||       Basic statistics       ||        Measured latency        
+    ('*' = any, '-' = same as previous)    ||          on the task         ||                                
+-------------------------------------------||------------------------------||--------------------------------
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      MODULE |              TASK |   TIMER ||    CALLS |     TIME |   PERC ||  AVERAGE |  MINIMUM |  MAXIMUM 
+             |                   |         ||          |      (s) |    (%) ||     (us) |     (us) |     (us) 
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+ Sigma_delta |           compute |       * ||      100 |     1.53 |  95.35 || 15253.43 |  7469.44 | 26120.87
+       Video |          generate |       * ||      101 |     0.07 |   4.25 ||   673.26 |     0.00 |  1114.91
+Adp_1_to_n_0 |            push_1 |       * ||      100 |     0.01 |   0.40 ||    63.37 |     1.95 |  5660.35
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+       TOTAL |                 * |       * ||      100 |     1.60 | 100.00 || 15996.79 |  7471.39 | 32907.28
+Pipeline stage 2 (4 thread(s)): 
+-------------------------------------------||------------------------------||--------------------------------
+       Statistics for the given task       ||       Basic statistics       ||        Measured latency        
+    ('*' = any, '-' = same as previous)    ||          on the task         ||                                
+-------------------------------------------||------------------------------||--------------------------------
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      MODULE |              TASK |   TIMER ||    CALLS |     TIME |   PERC ||  AVERAGE |  MINIMUM |  MAXIMUM 
+             |                   |         ||          |      (s) |    (%) ||     (us) |     (us) |     (us) 
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      Morpho |           compute |       * ||      100 |     3.91 |  59.32 || 39095.08 | 21127.30 | 56404.96
+Adp_1_to_n_0 |            pull_n |       * ||      100 |     1.18 |  17.93 || 11818.50 |     2.08 | 53477.54
+         CCL |             apply |       * ||      100 |     0.84 |  12.78 ||  8419.57 |  5952.54 | 10727.84
+Features_CCA |           extract |       * ||      100 |     0.41 |   6.22 ||  4099.53 |  3066.69 |  5932.29
+Features_filter |           filterf |       * ||      100 |     0.22 |   3.34 ||  2199.16 |  1035.78 |  5277.66
+Adp_n_to_1_1 |            push_n |       * ||      100 |     0.03 |   0.41 ||   270.26 |     2.14 | 13074.59
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+       TOTAL |                 * |       * ||      100 |     6.59 | 100.00 || 65902.10 | 31186.53 | 1.45e+05
+Pipeline stage 3 (1 thread(s)): 
+-------------------------------------------||------------------------------||--------------------------------
+       Statistics for the given task       ||       Basic statistics       ||        Measured latency        
+    ('*' = any, '-' = same as previous)    ||          on the task         ||                                
+-------------------------------------------||------------------------------||--------------------------------
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      MODULE |              TASK |   TIMER ||    CALLS |     TIME |   PERC ||  AVERAGE |  MINIMUM |  MAXIMUM 
+             |                   |         ||          |      (s) |    (%) ||     (us) |     (us) |     (us) 
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+Adp_n_to_1_1 |            pull_1 |       * ||      100 |     1.64 |  98.54 || 16429.47 |     1.28 | 82083.49
+     Delayer |           produce |       * ||      100 |     0.01 |   0.68 ||   113.74 |    58.98 |   220.70
+     Delayer |          memorize |       * ||      100 |     0.01 |   0.48 ||    80.59 |    26.78 |   650.11
+         KNN |            matchf |       * ||      100 |     0.00 |   0.17 ||    29.06 |     7.78 |   146.50
+    Tracking |           perform |       * ||      100 |     0.00 |   0.11 ||    17.80 |     4.61 |    82.56
+     Delayer |           produce |       * ||      100 |     0.00 |   0.01 ||     1.50 |     0.32 |     2.91
+     Delayer |          memorize |       * ||      100 |     0.00 |   0.00 ||     0.61 |     0.22 |     1.15
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+       TOTAL |                 * |       * ||      100 |     1.67 | 100.00 || 16672.77 |    99.97 | 83187.43
+End of the program, exiting.
+
+
+*task 1* - New Throughput: **59 FPS** (using 4 threads in stage 2 and 2 OMP threads in the sigma_delta task)
+Sigma_delta cannot be replicated because it is a task that has a data dependency over time. However, we can parallelize
+the computation of the sigma_delta task using OpenMP. Using OMP we can decrease the average latency of the sigma_delta
+20244 us to 15253 us. 
+
+*task 2* - The best configuration is to use 2 OMP threads in the sigma_delta task, while using 4 threads in the second stage.
+Moreover, the scheduling policy of the OMP threads is set to static, since the workload is perfectly balanced among the threads 
+so we can avoid the overhead of dynamic scheduling. The chunk size is set to 3, in this way each thread will process 3 lines of the
+image avoiding the false sharing problem.
+
+# TASK 5 MIPP
+
+Pipeline stage 1 (1 thread(s)): 
+-------------------------------------------||------------------------------||--------------------------------
+       Statistics for the given task       ||       Basic statistics       ||        Measured latency        
+    ('*' = any, '-' = same as previous)    ||          on the task         ||                                
+-------------------------------------------||------------------------------||--------------------------------
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      MODULE |              TASK |   TIMER ||    CALLS |     TIME |   PERC ||  AVERAGE |  MINIMUM |  MAXIMUM 
+             |                   |         ||          |      (s) |    (%) ||     (us) |     (us) |     (us) 
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+ Sigma_delta |           compute |       * ||      100 |     0.68 |  52.16 ||  6827.76 |  3416.54 |  9442.18
+Adp_1_to_n_0 |            push_1 |       * ||      100 |     0.55 |  42.24 ||  5529.75 |     1.73 | 45148.23
+       Video |          generate |       * ||      101 |     0.07 |   5.60 ||   725.53 |     0.00 |  1258.78
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+       TOTAL |                 * |       * ||      100 |     1.31 | 100.00 || 13090.29 |  3418.27 | 55861.77
+Pipeline stage 2 (4 thread(s)): 
+-------------------------------------------||------------------------------||--------------------------------
+       Statistics for the given task       ||       Basic statistics       ||        Measured latency        
+    ('*' = any, '-' = same as previous)    ||          on the task         ||                                
+-------------------------------------------||------------------------------||--------------------------------
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      MODULE |              TASK |   TIMER ||    CALLS |     TIME |   PERC ||  AVERAGE |  MINIMUM |  MAXIMUM 
+             |                   |         ||          |      (s) |    (%) ||     (us) |     (us) |     (us) 
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      Morpho |           compute |       * ||      100 |     3.49 |  64.20 || 34874.50 | 21105.41 | 57170.15
+         CCL |             apply |       * ||      100 |     0.83 |  15.34 ||  8331.08 |  6531.74 | 12075.07
+Features_CCA |           extract |       * ||      100 |     0.46 |   8.40 ||  4562.53 |  3734.40 |  7749.41
+Adp_1_to_n_0 |            pull_n |       * ||      100 |     0.24 |   4.38 ||  2379.70 |     1.98 | 22632.64
+Adp_n_to_1_1 |            push_n |       * ||      100 |     0.22 |   4.07 ||  2211.83 |     2.24 | 30821.41
+Features_filter |           filterf |       * ||      100 |     0.20 |   3.61 ||  1961.63 |   952.13 |  4644.22
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+       TOTAL |                 * |       * ||      100 |     5.43 | 100.00 || 54321.26 | 32327.91 | 1.35e+05
+Pipeline stage 3 (1 thread(s)): 
+-------------------------------------------||------------------------------||--------------------------------
+       Statistics for the given task       ||       Basic statistics       ||        Measured latency        
+    ('*' = any, '-' = same as previous)    ||          on the task         ||                                
+-------------------------------------------||------------------------------||--------------------------------
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+      MODULE |              TASK |   TIMER ||    CALLS |     TIME |   PERC ||  AVERAGE |  MINIMUM |  MAXIMUM 
+             |                   |         ||          |      (s) |    (%) ||     (us) |     (us) |     (us) 
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+Adp_n_to_1_1 |            pull_1 |       * ||      100 |     1.35 |  98.15 || 13470.31 |     1.12 | 79724.13
+     Delayer |           produce |       * ||      100 |     0.01 |   0.77 ||   105.48 |    83.26 |   226.59
+     Delayer |          memorize |       * ||      100 |     0.01 |   0.64 ||    87.53 |    26.43 |   465.54
+         KNN |            matchf |       * ||      100 |     0.00 |   0.26 ||    35.38 |     9.06 |   114.59
+    Tracking |           perform |       * ||      100 |     0.00 |   0.16 ||    22.55 |     4.80 |   105.31
+     Delayer |           produce |       * ||      100 |     0.00 |   0.01 ||     1.66 |     0.42 |     3.46
+     Delayer |          memorize |       * ||      100 |     0.00 |   0.01 ||     0.78 |     0.26 |     1.44
+-------------|-------------------|---------||----------|----------|--------||----------|----------|----------
+       TOTAL |                 * |       * ||      100 |     1.37 | 100.00 || 13723.68 |   125.34 | 80641.06
+
+**task 1** - New Throughput: **72 FPS** (using 4 threads in stage 2 and MIPP in the sigma_delta task)
+Using MIPP we can further decrease the average latency of the sigma_delta task from 15253 us to 6827 us. 
+In this way we are using different parallelization techniques.
+
+**task 2** - With this configuration we can see that now the morpho task is the bottleneck of the pipeline,
+taking 34874 us on average. Since we are using already 4 threads in the second stage, we cannot further increase
+the throughput of the pipeline by using more threads. This suggests that the configuration is already optimal.
+One possible solution could be to further optimize the morpho task by using MIPP.
+
+The total speedup of the pipeline is 72/9 = 8x.
+
+# TASK 6 Data Parallelism versus Pipeline+Replication
+Here we simplify the graph also in the base version of the code without pipeline. Moreover we add the data 
+parallelization to morpho and sigma_delta tasks without using the vectorization and the pipeline.
+
+Using this configuration we can achieve a throughput of **30 FPS** using static,3 and all threads available.
+As we known from computer architectures, the pipeline allows to increase drammatically the throughput 
+of a given application by overlapping the execution of different tasks. For this reason, the pipelined
+version of the application has a throughput of 72 FPS, which is higher by a factor of 2.4x. 

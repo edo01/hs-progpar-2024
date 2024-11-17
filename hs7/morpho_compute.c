@@ -35,18 +35,18 @@ void morpho_compute_erosion3(const uint8_t** img_in, uint8_t** img_out, const in
 {
 
     // copy the borders
-    #pragma omp for
+    #pragma omp for schedule(static,3)
     for (int i = i0; i <= i1; i++) {
         img_out[i][j0] = img_in[i][j0];
         img_out[i][j1] = img_in[i][j1];
     }
-    #pragma omp for
+    #pragma omp for schedule(static,3)
     for (int j = j0; j <= j1; j++) {
         img_out[i0][j] = img_in[i0][j];
         img_out[i1][j] = img_in[i1][j];
     }
 
-    #pragma omp for
+    #pragma omp for schedule(static,3)
     for (int i = i0 + 1; i <= i1 - 1; i++) {
         for (int j = j0 + 1; j <= j1 - 1; j++) {
             uint8_t c0 = img_in[i - 1][j - 1] & img_in[i - 1][j] & img_in[i - 1][j + 1];
@@ -68,17 +68,17 @@ void morpho_compute_dilation3(const uint8_t** img_in, uint8_t** img_out, const i
 {
  
     // copy the borders
-    #pragma omp for
+    #pragma omp for schedule(static,3)
     for (int i = i0; i <= i1; i++) {
         img_out[i][j0] = img_in[i][j0];
         img_out[i][j1] = img_in[i][j1];
     }
-    #pragma omp for
+    #pragma omp for schedule(static,3)
     for (int j = j0; j <= j1; j++) {
         img_out[i0][j] = img_in[i0][j];
         img_out[i1][j] = img_in[i1][j];
     }
-    #pragma omp for
+    #pragma omp for schedule(static,3)
     for (int i = i0 + 1; i <= i1 - 1; i++) {
         for (int j = j0 + 1; j <= j1 - 1; j++) {
             uint8_t c0 = img_in[i - 1][j - 1] | img_in[i - 1][j] | img_in[i - 1][j + 1];

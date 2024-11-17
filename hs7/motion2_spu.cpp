@@ -514,11 +514,11 @@ int main(int argc, char** argv) {
     std::vector<spu::runtime::Task*> seq_first_tasks = {&delayer_n_RoIs("produce"), &delayer_RoIs("produce"), &video("generate")};
 
     spu::runtime::Pipeline pipeline(seq_first_tasks, pip_stages, 
-        {   1,      4,     1 }, //{       1,      2,      1 }, //2 times replication
-        {   5,             5 },
-        {       false,  false   },
-        {false, false,  false   },
-        { "PU0  | PU1  |  PU2 "});
+        {   1,      4,     1 }, 
+        {   1,             1 },
+        {       false,  false},
+        {true,  true,   true },
+        {"PU0|PU1,PU2,PU3,PU4|PU5"});
 
     
     // Enabling statistics
