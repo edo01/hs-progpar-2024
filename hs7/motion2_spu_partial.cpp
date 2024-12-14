@@ -674,6 +674,9 @@ int main(int argc, char** argv) {
         { "PU0  | PU1  |  PU2 "});
 
 
+    // Print statistics after execution
+    const bool ordered = true, display_throughput = false;
+    tools::Stats::show(seq.get_modules_per_types(), ordered, display_throughput);
     TIME_POINT(start_compute);
     pipeline.exec({
         [&video] (const std::vector<const int*>& statuses) { return video.is_done(); }, 
