@@ -1,3 +1,16 @@
+/**
+##############################################################
+##############################################################
+##############################################################
+
+AUTHORS: MENGQIAN XU (21306077), EDOARDO CARRA' (21400562)
+BOARD ID: Q
+
+##############################################################
+##############################################################
+##############################################################
+*/
+
 #include <stdio.h>
 #include <time.h>
 
@@ -11,7 +24,8 @@ int width_Frame = 1024;
 int height_Frame = 436;
 const char input_folder[]  = "temple_3/";
 const char output_folder[] = "output_images/";
-/*
+
+
 int test_morphology(int argc, char** argv)
 {
   // Timing variables
@@ -84,9 +98,8 @@ int test_morphology(int argc, char** argv)
 
   return 0;
 }
-*/
 
-int test_morphology(int argc, char** argv) {
+int test_morphology_gpu(int argc, char** argv) {
     // Timing variables
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -100,7 +113,7 @@ int test_morphology(int argc, char** argv) {
     char input_filename[128];
     char output_filename[128];
 
-    unsigned char *h_Frame_in, *h_Frame_out, *h_Frame_tmp;
+    unsigned char *h_Frame_in, *h_Frame_out; //*h_Frame_tmp;
     unsigned char *d_Frame_in, *d_Frame_out, *d_Frame_tmp;
     int *d_Mask;
 
@@ -139,12 +152,13 @@ int test_morphology(int argc, char** argv) {
         dim3 block(tile_width, tile_height);
         dim3 grid((width_Frame + tile_width - 1) / tile_width, 
                   (height_Frame + tile_height - 1) / tile_height);
-
         // Erosion
-        kernel_erosion<<<grid, block>>>(d_Frame_in, d_Frame_tmp, height_Frame, width_Frame, d_Mask, mask_radius);
+        gpu_kernel_erosion_no_boundary<<<grid, block, (tile_height+2*mask_radius)*(tile_width+2*mask_radius)*sizeof(unsigned char)>>>(d_Frame_in, d_Frame_tmp, height_Frame, width_Frame, d_Mask, mask_radius);
 
         // Dilation
-        kernel_dilation<<<grid, block>>>(d_Frame_tmp, d_Frame_out, height_Frame, width_Frame, d_Mask, mask_radius);
+        gpu_kernel_dilation_no_boundary<<<grid, block, (tile_height+2*mask_radius)*(tile_width*2*mask_radius)*sizeof(unsigned char)>>>(d_Frame_tmp, d_Frame_out, height_Frame, width_Frame, d_Mask, mask_radius);
+
+        cudaDeviceSynchronize(); // for the timing
 
         // Stop CUDA event to measure kernel execution time
         cudaEventRecord(stop);
@@ -186,8 +200,6 @@ int test_morphology(int argc, char** argv) {
 int main(int argc, char** argv)
 {
   test_morphology(argc, argv);
+  //test_morphology_gpu(argc, argv);
   return 0;
 }
-
-
-

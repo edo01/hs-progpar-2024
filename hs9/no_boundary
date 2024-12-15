@@ -1,0 +1,350 @@
+Frame     : 0001
+Time      : 0.070336 ms
+Pixel perf: 1.575 ns/pix
+FLOPs     : 63.476 GFlops
+Bandwidth : 63.476 Go/s
+FPS       : 1124.86
+
+Frame     : 0002
+Time      : 0.030912 ms
+Pixel perf: 0.692 ns/pix
+FLOPs     : 144.431 GFlops
+Bandwidth : 144.431 Go/s
+FPS       : 1517.45
+
+Frame     : 0003
+Time      : 0.477504 ms
+Pixel perf: 10.695 ns/pix
+FLOPs     : 9.350 GFlops
+Bandwidth : 9.350 Go/s
+FPS       : 829.19
+
+Frame     : 0004
+Time      : 0.039584 ms
+Pixel perf: 0.887 ns/pix
+FLOPs     : 112.789 GFlops
+Bandwidth : 112.789 Go/s
+FPS       : 1040.58
+
+Frame     : 0005
+Time      : 0.039584 ms
+Pixel perf: 0.887 ns/pix
+FLOPs     : 112.789 GFlops
+Bandwidth : 112.789 Go/s
+FPS       : 755.86
+
+Frame     : 0006
+Time      : 0.039488 ms
+Pixel perf: 0.884 ns/pix
+FLOPs     : 113.063 GFlops
+Bandwidth : 113.063 Go/s
+FPS       : 763.36
+
+Frame     : 0007
+Time      : 0.038112 ms
+Pixel perf: 0.854 ns/pix
+FLOPs     : 117.145 GFlops
+Bandwidth : 117.145 Go/s
+FPS       : 731.53
+
+Frame     : 0008
+Time      : 0.034656 ms
+Pixel perf: 0.776 ns/pix
+FLOPs     : 128.827 GFlops
+Bandwidth : 128.827 Go/s
+FPS       : 701.75
+
+Frame     : 0009
+Time      : 0.101600 ms
+Pixel perf: 2.276 ns/pix
+FLOPs     : 43.943 GFlops
+Bandwidth : 43.943 Go/s
+FPS       : 715.31
+
+Frame     : 0010
+Time      : 0.037696 ms
+Pixel perf: 0.844 ns/pix
+FLOPs     : 118.438 GFlops
+Bandwidth : 118.438 Go/s
+FPS       : 657.03
+
+Frame     : 0011
+Time      : 0.035808 ms
+Pixel perf: 0.802 ns/pix
+FLOPs     : 124.683 GFlops
+Bandwidth : 124.683 Go/s
+FPS       : 714.80
+
+Frame     : 0012
+Time      : 0.035488 ms
+Pixel perf: 0.795 ns/pix
+FLOPs     : 125.807 GFlops
+Bandwidth : 125.807 Go/s
+FPS       : 707.71
+
+Frame     : 0013
+Time      : 0.040256 ms
+Pixel perf: 0.902 ns/pix
+FLOPs     : 110.906 GFlops
+Bandwidth : 110.906 Go/s
+FPS       : 642.26
+
+Frame     : 0014
+Time      : 0.088640 ms
+Pixel perf: 1.985 ns/pix
+FLOPs     : 50.368 GFlops
+Bandwidth : 50.368 Go/s
+FPS       : 678.43
+
+Frame     : 0015
+Time      : 0.037504 ms
+Pixel perf: 0.840 ns/pix
+FLOPs     : 119.044 GFlops
+Bandwidth : 119.044 Go/s
+FPS       : 709.22
+
+Frame     : 0016
+Time      : 0.040416 ms
+Pixel perf: 0.905 ns/pix
+FLOPs     : 110.467 GFlops
+Bandwidth : 110.467 Go/s
+FPS       : 706.21
+
+Frame     : 0017
+Time      : 0.035648 ms
+Pixel perf: 0.798 ns/pix
+FLOPs     : 125.242 GFlops
+Bandwidth : 125.242 Go/s
+FPS       : 708.72
+
+Frame     : 0018
+Time      : 0.036640 ms
+Pixel perf: 0.821 ns/pix
+FLOPs     : 121.852 GFlops
+Bandwidth : 121.852 Go/s
+FPS       : 727.27
+
+Frame     : 0019
+Time      : 0.611552 ms
+Pixel perf: 13.698 ns/pix
+FLOPs     : 7.301 GFlops
+Bandwidth : 7.301 Go/s
+FPS       : 503.02
+
+Frame     : 0020
+Time      : 0.085088 ms
+Pixel perf: 1.906 ns/pix
+FLOPs     : 52.471 GFlops
+Bandwidth : 52.471 Go/s
+FPS       : 688.23
+
+Frame     : 0021
+Time      : 0.039040 ms
+Pixel perf: 0.874 ns/pix
+FLOPs     : 114.361 GFlops
+Bandwidth : 114.361 Go/s
+FPS       : 727.27
+
+Frame     : 0022
+Time      : 0.035136 ms
+Pixel perf: 0.787 ns/pix
+FLOPs     : 127.067 GFlops
+Bandwidth : 127.067 Go/s
+FPS       : 721.50
+
+Frame     : 0023
+Time      : 0.039840 ms
+Pixel perf: 0.892 ns/pix
+FLOPs     : 112.064 GFlops
+Bandwidth : 112.064 Go/s
+FPS       : 732.06
+
+Frame     : 0024
+Time      : 0.418624 ms
+Pixel perf: 9.376 ns/pix
+FLOPs     : 10.665 GFlops
+Bandwidth : 10.665 Go/s
+FPS       : 467.07
+
+Frame     : 0025
+Time      : 0.040576 ms
+Pixel perf: 0.909 ns/pix
+FLOPs     : 110.032 GFlops
+Bandwidth : 110.032 Go/s
+FPS       : 658.33
+
+Frame     : 0026
+Time      : 0.040800 ms
+Pixel perf: 0.914 ns/pix
+FLOPs     : 109.427 GFlops
+Bandwidth : 109.427 Go/s
+FPS       : 707.71
+
+Frame     : 0027
+Time      : 0.039008 ms
+Pixel perf: 0.874 ns/pix
+FLOPs     : 114.454 GFlops
+Bandwidth : 114.454 Go/s
+FPS       : 717.36
+
+Frame     : 0028
+Time      : 0.034592 ms
+Pixel perf: 0.775 ns/pix
+FLOPs     : 129.066 GFlops
+Bandwidth : 129.066 Go/s
+FPS       : 645.16
+
+Frame     : 0029
+Time      : 0.509568 ms
+Pixel perf: 11.413 ns/pix
+FLOPs     : 8.762 GFlops
+Bandwidth : 8.762 Go/s
+FPS       : 512.82
+
+Frame     : 0030
+Time      : 0.038368 ms
+Pixel perf: 0.859 ns/pix
+FLOPs     : 116.364 GFlops
+Bandwidth : 116.364 Go/s
+FPS       : 693.00
+
+Frame     : 0031
+Time      : 0.039456 ms
+Pixel perf: 0.884 ns/pix
+FLOPs     : 113.155 GFlops
+Bandwidth : 113.155 Go/s
+FPS       : 757.58
+
+Frame     : 0032
+Time      : 0.038112 ms
+Pixel perf: 0.854 ns/pix
+FLOPs     : 117.145 GFlops
+Bandwidth : 117.145 Go/s
+FPS       : 729.39
+
+Frame     : 0033
+Time      : 0.565088 ms
+Pixel perf: 12.657 ns/pix
+FLOPs     : 7.901 GFlops
+Bandwidth : 7.901 Go/s
+FPS       : 522.74
+
+Frame     : 0034
+Time      : 0.086720 ms
+Pixel perf: 1.942 ns/pix
+FLOPs     : 51.483 GFlops
+Bandwidth : 51.483 Go/s
+FPS       : 701.75
+
+Frame     : 0035
+Time      : 0.040384 ms
+Pixel perf: 0.905 ns/pix
+FLOPs     : 110.555 GFlops
+Bandwidth : 110.555 Go/s
+FPS       : 722.02
+
+Frame     : 0036
+Time      : 0.037472 ms
+Pixel perf: 0.839 ns/pix
+FLOPs     : 119.146 GFlops
+Bandwidth : 119.146 Go/s
+FPS       : 732.60
+
+Frame     : 0037
+Time      : 0.034112 ms
+Pixel perf: 0.764 ns/pix
+FLOPs     : 130.882 GFlops
+Bandwidth : 130.882 Go/s
+FPS       : 736.92
+
+Frame     : 0038
+Time      : 0.632032 ms
+Pixel perf: 14.156 ns/pix
+FLOPs     : 7.064 GFlops
+Bandwidth : 7.064 Go/s
+FPS       : 474.83
+
+Frame     : 0039
+Time      : 0.041248 ms
+Pixel perf: 0.924 ns/pix
+FLOPs     : 108.239 GFlops
+Bandwidth : 108.239 Go/s
+FPS       : 726.22
+
+Frame     : 0040
+Time      : 0.038304 ms
+Pixel perf: 0.858 ns/pix
+FLOPs     : 116.558 GFlops
+Bandwidth : 116.558 Go/s
+FPS       : 747.38
+
+Frame     : 0041
+Time      : 0.038144 ms
+Pixel perf: 0.854 ns/pix
+FLOPs     : 117.047 GFlops
+Bandwidth : 117.047 Go/s
+FPS       : 757.00
+
+Frame     : 0042
+Time      : 0.041120 ms
+Pixel perf: 0.921 ns/pix
+FLOPs     : 108.576 GFlops
+Bandwidth : 108.576 Go/s
+FPS       : 772.20
+
+Frame     : 0043
+Time      : 0.484608 ms
+Pixel perf: 10.854 ns/pix
+FLOPs     : 9.213 GFlops
+Bandwidth : 9.213 Go/s
+FPS       : 569.80
+
+Frame     : 0044
+Time      : 0.042336 ms
+Pixel perf: 0.948 ns/pix
+FLOPs     : 105.457 GFlops
+Bandwidth : 105.457 Go/s
+FPS       : 671.59
+
+Frame     : 0045
+Time      : 0.037952 ms
+Pixel perf: 0.850 ns/pix
+FLOPs     : 117.639 GFlops
+Bandwidth : 117.639 Go/s
+FPS       : 750.75
+
+Frame     : 0046
+Time      : 0.040128 ms
+Pixel perf: 0.899 ns/pix
+FLOPs     : 111.260 GFlops
+Bandwidth : 111.260 Go/s
+FPS       : 724.11
+
+Frame     : 0047
+Time      : 0.040928 ms
+Pixel perf: 0.917 ns/pix
+FLOPs     : 109.085 GFlops
+Bandwidth : 109.085 Go/s
+FPS       : 603.86
+
+Frame     : 0048
+Time      : 0.109248 ms
+Pixel perf: 2.447 ns/pix
+FLOPs     : 40.867 GFlops
+Bandwidth : 40.867 Go/s
+FPS       : 592.42
+
+Frame     : 0049
+Time      : 0.040864 ms
+Pixel perf: 0.915 ns/pix
+FLOPs     : 109.256 GFlops
+Bandwidth : 109.256 Go/s
+FPS       : 683.53
+
+Frame     : 0050
+Time      : 0.033280 ms
+Pixel perf: 0.745 ns/pix
+FLOPs     : 134.154 GFlops
+Bandwidth : 134.154 Go/s
+FPS       : 737.46
+

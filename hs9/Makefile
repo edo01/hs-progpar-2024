@@ -4,10 +4,10 @@ BIN_PATH = ./bin
 INC_PATH = ./include
 OUT_PATH = ./output_images
 
-NVCC = /usr/local/cuda/bin/nvcc
+NVCC = /local/cuda-12.0/toolkit/bin/nvcc
 NVCC_INC_FLAG = -I/usr/local/cuda/include -I$(INC_PATH)
 NVCC_LIB_FLAG = -L/usr/local/cuda/lib64 -lcudart -lcuda
-NVCC_FLAGS = -O3 --gpu-architecture=sm_75 -lineinfo --Werror all-warnings
+NVCC_FLAGS = -O3 --gpu-architecture=sm_86 -lineinfo --Werror all-warnings
 
 CC = gcc
 CC_INC_FLAG = $(NVCC_INC_FLAG)
