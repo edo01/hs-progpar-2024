@@ -16,6 +16,8 @@ public:
      * @param p_cca_roi_max1 Maximum number of regions of interest
      */
     Features_CCA(int i0, int i1, int j0, int j1, int p_cca_roi_max1);
+    virtual Features_CCA* clone() const override;
+    void deep_copy(const Features_CCA& f);
 
 private:
     int i0, i1, j0, j1, p_cca_roi_max1;
