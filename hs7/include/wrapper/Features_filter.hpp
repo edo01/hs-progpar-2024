@@ -22,12 +22,14 @@ public:
                 int p_cca_roi_max1, int s_min, int s_max,
                 int p_cca_roi_max2);
 
+    virtual Features_filter* clone() const override;
+    void deep_copy(const Features_filter& f);
+
 private:
     int i0, i1, j0, j1; 
     int p_cca_roi_max1; 
     int s_min, s_max;  
     int p_cca_roi_max2;
-
 };
 
 #endif 

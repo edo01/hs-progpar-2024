@@ -12,10 +12,13 @@ public:
      * @param ccl_data Pointer to the CCL_data_t structure used for CCL operations
      */
     CCL(CCL_data_t* ccl_data, int def_p_cca_roi_max);
+    virtual CCL* clone() const override;
+    void deep_copy(const CCL& c);
 
 private:
     CCL_data_t* ccl_data;   
     int def_p_cca_roi_max;
+
 };
 
 #endif 
