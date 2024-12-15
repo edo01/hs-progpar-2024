@@ -144,6 +144,7 @@ void gpu_kernel_erosion(const unsigned char* Frame_in, unsigned char* Frame_out,
 
     unsigned char min_val = 255;
 
+# pragma unroll
     for(int dy = -mask_radius; dy <= mask_radius; dy++)
     {
         for(int dx = -mask_radius; dx <= mask_radius; dx++)
@@ -228,6 +229,7 @@ void gpu_kernel_dilation(const unsigned char* Frame_in, unsigned char* Frame_out
 
     unsigned char max_val = 0;
 
+    #pragma unroll
     for(int dy = -mask_radius; dy <= mask_radius; dy++)
     {
         for(int dx = -mask_radius; dx <= mask_radius; dx++)
