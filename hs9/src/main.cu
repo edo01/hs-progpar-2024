@@ -199,7 +199,7 @@ int test_morphology_gpu(int argc, char** argv) {
 
 int main(int argc, char** argv)
 {
-  test_morphology(argc, argv);
-  //test_morphology_gpu(argc, argv);
+  //test_morphology(argc, argv);
+  test_morphology_gpu(argc, argv);
   return 0;
 }
