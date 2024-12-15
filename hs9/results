@@ -1,0 +1,108 @@
+############ SEQUENTIAL ############
+Frame     : 0001
+Time      : 6.911872 ms
+Pixel perf: 154.814 ns/pix
+FLOPs     : 0.646 GFlops
+Bandwidth : 0.646 Go/s
+FPS       : 133.42
+
+Frame     : 0002
+Time      : 8.648704 ms
+Pixel perf: 193.716 ns/pix
+FLOPs     : 0.516 GFlops
+Bandwidth : 0.516 Go/s
+FPS       : 107.35
+
+Frame     : 0003
+Time      : 12.253184 ms
+Pixel perf: 274.450 ns/pix
+FLOPs     : 0.364 GFlops
+Bandwidth : 0.364 Go/s
+FPS       : 78.22
+
+Frame     : 0004
+Time      : 8.098816 ms
+Pixel perf: 181.399 ns/pix
+FLOPs     : 0.551 GFlops
+Bandwidth : 0.551 Go/s
+FPS       : 117.40
+
+Frame     : 0005
+Time      : 7.714816 ms
+Pixel perf: 172.798 ns/pix
+FLOPs     : 0.579 GFlops
+Bandwidth : 0.579 Go/s
+FPS       : 122.13
+
+############ NO BOUNDARY ############
+
+Frame     : 0001
+Time      : 0.070336 ms
+Pixel perf: 1.575 ns/pix
+FLOPs     : 63.476 GFlops
+Bandwidth : 63.476 Go/s
+FPS       : 1124.86
+
+Frame     : 0002
+Time      : 0.030912 ms
+Pixel perf: 0.692 ns/pix
+FLOPs     : 144.431 GFlops
+Bandwidth : 144.431 Go/s
+FPS       : 1517.45
+
+Frame     : 0003
+Time      : 0.477504 ms
+Pixel perf: 10.695 ns/pix
+FLOPs     : 9.350 GFlops
+Bandwidth : 9.350 Go/s
+FPS       : 829.19
+
+Frame     : 0004
+Time      : 0.039584 ms
+Pixel perf: 0.887 ns/pix
+FLOPs     : 112.789 GFlops
+Bandwidth : 112.789 Go/s
+FPS       : 1040.58
+
+Frame     : 0005
+Time      : 0.039584 ms
+Pixel perf: 0.887 ns/pix
+FLOPs     : 112.789 GFlops
+Bandwidth : 112.789 Go/s
+FPS       : 755.86
+
+############ WITH BOUNDARY ############
+Frame     : 0001
+Time      : 0.076128 ms
+Pixel perf: 1.705 ns/pix
+FLOPs     : 58.646 GFlops
+Bandwidth : 58.646 Go/s
+FPS       : 1112.35
+
+Frame     : 0002
+Time      : 0.036768 ms
+Pixel perf: 0.824 ns/pix
+FLOPs     : 121.427 GFlops
+Bandwidth : 121.427 Go/s
+FPS       : 1572.33
+
+Frame     : 0003
+Time      : 0.084256 ms
+Pixel perf: 1.887 ns/pix
+FLOPs     : 52.989 GFlops
+Bandwidth : 52.989 Go/s
+FPS       : 1572.33
+
+Frame     : 0004
+Time      : 0.036896 ms
+Pixel perf: 0.826 ns/pix
+FLOPs     : 121.006 GFlops
+Bandwidth : 121.006 Go/s
+FPS       : 1150.75
+
+Frame     : 0005
+Time      : 0.041344 ms
+Pixel perf: 0.926 ns/pix
+FLOPs     : 107.988 GFlops
+Bandwidth : 107.988 Go/s
+FPS       : 709.22
